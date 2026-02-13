@@ -100,3 +100,6 @@ dist
 .svelte-kit
 
 .idea
+
+# test 파일
+*.http

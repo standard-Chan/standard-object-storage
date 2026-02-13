@@ -3,6 +3,11 @@
 AWS S3 object storage를 직접 만드는 프로젝트입니다.
 
 ---
+## 프로토타입 아키텍처 구조도
+<img src="docs/imgs/프로토타입 아키텍처.png" width="1000" />
+
+---
+
 ## 각 요청 흐름
 ### 1. PUT 요청 흐름
 <img src="docs/imgs/PUT.png" width="1000" />
