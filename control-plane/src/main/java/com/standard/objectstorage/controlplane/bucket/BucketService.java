@@ -1,11 +1,16 @@
 package com.standard.objectstorage.controlplane.bucket;
 
+import com.standard.objectstorage.controlplane.bucket.dto.BucketListResponse;
 import com.standard.objectstorage.controlplane.bucket.dto.BucketResponse;
 import com.standard.objectstorage.controlplane.bucket.dto.CreateBucketRequest;
 import com.standard.objectstorage.controlplane.user.User;
 import com.standard.objectstorage.controlplane.user.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -15,7 +20,6 @@ public class BucketService {
     private final UserService userService;
 
     public BucketResponse createBucket(CreateBucketRequest request, Long userId) {
-
         if (bucketRepository.existsByName(request.getName())) {
             throw new IllegalArgumentException("이미 존재하는 Bucket 입니다.");
         }
@@ -33,6 +37,23 @@ public class BucketService {
                 .id(saved.getId())
                 .name(saved.getName())
                 .createdAt(saved.getCreatedAt())
+                .build();
+    }
+
+    public BucketListResponse getBuckets() {
+
+        List<BucketResponse> bucketResponses = bucketRepository
+                .findAll(Sort.by(Sort.Direction.DESC, "createdAt"))
+                .stream()
+                .map(bucket -> BucketResponse.builder()
+                        .id(bucket.getId())
+                        .name(bucket.getName())
+                        .createdAt(bucket.getCreatedAt())
+                        .build())
+                .toList();
+
+        return BucketListResponse.builder()
+                .buckets(bucketResponses)
                 .build();
     }
 }
