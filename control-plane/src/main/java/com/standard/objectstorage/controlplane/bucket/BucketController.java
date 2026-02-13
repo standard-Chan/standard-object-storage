@@ -28,4 +28,10 @@ public class BucketController {
     public ResponseEntity<BucketListResponse> getBuckets() {
         return ResponseEntity.ok(bucketService.getBuckets());
     }
+
+    @DeleteMapping("/{name}")
+    public ResponseEntity<Void> deleteBucket(@PathVariable String name) {
+        bucketService.deleteBucket(name);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -41,7 +41,6 @@ public class BucketService {
     }
 
     public BucketListResponse getBuckets() {
-
         List<BucketResponse> bucketResponses = bucketRepository
                 .findAll(Sort.by(Sort.Direction.DESC, "createdAt"))
                 .stream()
@@ -55,5 +54,14 @@ public class BucketService {
         return BucketListResponse.builder()
                 .buckets(bucketResponses)
                 .build();
+    }
+
+    public void deleteBucket(String name) {
+        Bucket bucket = bucketRepository.findByName(name)
+                .orElseThrow(() -> new IllegalArgumentException("Bucket not found"));
+
+        // TODO: 추후 Object 추가 될 경우, Bucket이 비워졌는지 확인 검증 필요
+
+        bucketRepository.delete(bucket);
     }
 }
