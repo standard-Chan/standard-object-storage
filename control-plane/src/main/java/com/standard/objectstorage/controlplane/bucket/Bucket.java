@@ -1,8 +1,8 @@
 package com.standard.objectstorage.controlplane.bucket;
 
+import com.standard.objectstorage.controlplane.user.User;
 import jakarta.persistence.*;
 import lombok.*;
-import org.apache.catalina.User;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -16,15 +16,15 @@ import java.util.UUID;
 public class Bucket {
 
     @Id
-    @GeneratedValue
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @Column(nullable = false, unique = true, length = 63)
     private String name;
 
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "owner_id", nullable = false)
-//    private User owner;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id", nullable = false)
+    private User owner;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -32,7 +32,7 @@ public class Bucket {
     @Builder
     Bucket(String name, User owner) {
         this.name = name;
-//        this.owner = owner;
+        this.owner = owner;
     }
 
     @PrePersist
