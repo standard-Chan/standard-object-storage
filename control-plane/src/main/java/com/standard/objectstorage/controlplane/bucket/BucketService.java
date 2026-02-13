@@ -20,11 +20,11 @@ public class BucketService {
     private final UserService userService;
 
     public BucketResponse createBucket(CreateBucketRequest request, Long userId) {
-        if (bucketRepository.existsByName(request.getName())) {
+        User user = userService.getUser(userId);
+
+        if (bucketRepository.existsByOwnerAndName(user, request.getName())) {
             throw new IllegalArgumentException("이미 존재하는 Bucket 입니다.");
         }
-
-        User user = userService.getUser(userId);
 
         Bucket bucket = Bucket.builder()
                 .name(request.getName())

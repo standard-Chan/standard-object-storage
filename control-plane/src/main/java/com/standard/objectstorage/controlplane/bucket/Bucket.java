@@ -8,7 +8,15 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "TB_BUCKETS")
+@Table(
+        name = "TB_BUCKETS",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "UK_OWNER_NAME",
+                        columnNames = {"owner_id", "name"}
+                )
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -19,7 +27,7 @@ public class Bucket {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 63)
+    @Column(nullable = false, length = 63)
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
