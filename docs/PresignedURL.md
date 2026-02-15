@@ -1,4 +1,4 @@
-# 1. Presigned URL이란?
+# 0. Presigned URL이란?
 
 S3 기준의 **`Presigned URL`**은 ‘일정 시간동안 접근 가능한, 인증완료된 권한 URL`을 의미한다.
 
@@ -18,6 +18,87 @@ Presigned URL에는 다음 값들을 묶어서 키로 만든다.
 - HTTP 메서드
 - 만료 시간
 - 파라미터
+### Presigned URL 생성 과정
+
+```text
+[서버]
+   │
+   │ 1. 특정 user의 SecretKey를 조회
+   │
+   │ 2. CanonicalRequest 생성
+   │
+   │ 3. SigningKey 파생
+   │
+   │ 4. HMAC 생성
+   │
+   ▼
+[완성된 URL 반환]
+```
+
+위처럼 생성 과정이 끝난 후 결과적으로 다음 값들이 들어간다.
+
+```text
+X-Amz-Credential=AccessKey/날짜/리전/서비스/aws4_request
+X-Amz-Signature=HMAC결과
+```
+
+각각은 다음을 의미한다고 생각하면 된다.
+
+- **Credential → “누가 만들었는지”**
+- **Signature → “위조되지 않았는지”**
+
+아래에서는 Credential과 Signature 에 대해서 알아본다.
+
+
+# 1. credential에 대해서
+
+우선 credential을 어디에서 올까?
+
+바로, Secret Key에서 온다. 그리고 이 Secret Key는 IAM User로부터 생성된다.
+
+- **IAM User 생성한다**
+- **AccessKey / SecretKey 발급해준다**
+- **서버는 SecretKey를 안전하게 보관하고 있다가 Presigned URL 생성 시 사용한다**
+
+## 1.1 AccessKey와 SecretKey
+
+**AccessKey는 사용자가 누구인지 확인하는 용도의 Key이다.**
+
+이 값을 서버에 전달하면, 해당 값으로 누구의 요청인지를 파악할 수 있다.
+
+다음과 같은 구조로 들어온다.
+
+```text
+X-Amz-Credential=AKIA123456/20260215/ap-northeast-2/s3/aws4_request
+```
+
+여기에서 가장 앞에있는 AKIA123…. 가 `AccessKey`이다.
+
+**SecretKey는 해당 사용자의 암호화키라고 생각하면 된다.**
+
+이 AccessKey를 사용하여, Secret Key를 DB에서 조회할 수 있다. 또한 이렇게 조회된 Secret Key를 이용하여 Signature의 암호화를 만드는데 사용하게 된다.
+
+### 왜 2개의 키로 나누어서 관리할까?
+
+궁금한점이 생겼다. Access Key가 단순하게 Secret Key에 접근하기 위한 수단으로의 역할을 한다면, 단순하게 Access Key 없이, Secret Key 1개 만으로 서버에서 암호화, 복호화를 해서 사용하는 것이 더욱 좋지 않을까? 더구나 Secret Key를 DB에 일일이 저장해야한다면, 이를 저장할 공간도 낭비되는 것이 아닌가?
+
+즉, 현재 구조는 아래이다.
+
+```
+Client에서 AccessKey를 전달 -> 서버에서 AccessKey 추출 -> DB에서 AccessKey로 SecretKey 조회
+```
+
+그런데 아래처럼 바꾼다면?
+
+```
+Client에서 암호화된 Secret Key 전달 -> 서버에서 Secret Key 복호화 -> 사용
+```
+
+이렇게 수정한다면, 불필요하게 2개의 키를 저장할 이유가 없지 않은가!
+
+**하지만 이렇게 하면 큰 문제가 있다!**
+
+바로 서버에 암호화키 1개를 털리게되면, 모든 사용자의 SecretKey가 털린다는 것이다. 그래서 보안상 정말 위험할 것 같다.!
 
 # 2. Presigned URL 서명 구조
 
@@ -42,9 +123,9 @@ HMAC(K, m) = H( (K ⊕ opad) || H((K ⊕ ipad) || m))
 - H = SHA256
 - ipad/opad = 고정 패딩
 ```
+솔직히… 이런 것 까지 이해하면 물론 좋겠지만, 어렵기도 하고, 추상적으로 이해해도 괜찮을 것 같아서 구체적으로 학습하진 않았다.
 
-솔직히… 이런 것 까지 이해하면 물론 좋겠지만, 시간이 너무 오래 걸릴 것 같다. 그래서 이러한 암호화 방식을 쓴다고 받아들이도록 하자.
-
+다만 여기에서 HMAC 부분의 SecretKey를 유심히 보자. 아까 위에서 나온 **사용자별의 암호화 Key** 이다. 이를 통해 사용자 별로 다른 키를 통해서 암호화를 진행한다.
 ## 2.2 Presigned URL에서 서명하는 것
 
 URL 전체에 대해서 이게 올바른 URL인지 검증하진 않고, 다음 **4가지에 대해서 서명**을 한다. 차례대로 서명하면서 최종 Signature 1개에 서명값을 담아내게 된다.
