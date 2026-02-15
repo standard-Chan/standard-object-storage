@@ -45,6 +45,10 @@ dependencies {
 
 	// read .env
 	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+
+	// AWS Presigned URL
+	implementation("software.amazon.awssdk:s3")
+	implementation("software.amazon.awssdk:s3-presigner")
 }
 
 tasks.named('test') {
