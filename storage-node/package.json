@@ -19,6 +19,7 @@
   "license": "ISC",
   "dependencies": {
     "@fastify/autoload": "^6.0.0",
+    "@fastify/multipart": "^9.4.0",
     "@fastify/mysql": "^5.0.2",
     "@fastify/sensible": "^6.0.0",
     "dotenv": "^17.3.1",
