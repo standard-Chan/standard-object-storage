@@ -1,11 +1,24 @@
 package com.standard.objectstorage.controlplane.storedObjcet;
 
 import com.standard.objectstorage.controlplane.bucket.Bucket;
-import jakarta.persistence.*;
-import lombok.*;
-
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "TB_OBJECTS")
@@ -22,8 +35,8 @@ public class StoredObject {
     @JoinColumn(name = "bucket_id", nullable = false)
     private Bucket bucket;
 
-    @Column(nullable = false, length = 1024)
-    private String key;
+    @Column(nullable = false, length = 512, name = "object_key")
+    private String objectKey;
 
     @Column(nullable = false, length = 1024)
     private String storagePath;
