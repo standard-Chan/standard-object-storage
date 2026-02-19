@@ -63,3 +63,10 @@ test/types/index.js
 
 # compiled app
 dist
+
+# uploaded files
+uploads/*
+!uploads/.gitkeep
+
+# environment variables
+.env
