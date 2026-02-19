@@ -1,4 +1,4 @@
-import { isExpired, verifySignature } from '../../utils/crypto'
+import { isExpired, verifySignature } from './crypto'
 
 /**
  * 검증 결과 타입

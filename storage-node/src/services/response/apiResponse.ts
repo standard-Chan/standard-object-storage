@@ -26,7 +26,7 @@ export function createSuccessResponse(fileInfo: FileInfo) {
     message: '파일이 성공적으로 업로드되었습니다',
     data: {
       bucket: fileInfo.bucket,
-      key: fileInfo.key,
+      key: fileInfo.objectKey,
       filename: fileInfo.filename,
       mimetype: fileInfo.mimetype,
       size: fileInfo.size,
