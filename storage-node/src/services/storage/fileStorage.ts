@@ -104,6 +104,37 @@ export async function generateETag(filePath: string): Promise<string> {
 }
 
 /**
+ * 저장된 파일 삭제 (롤백용)
+ */
+export async function deleteFile(filePath: string): Promise<void> {
+  try {
+    await fsPromises.unlink(filePath)
+  } catch (error) {
+    // 파일이 없어도 무시
+  }
+}
+
+/**
+ * 객체가 이미 존재하는지 확인
+ */
+export async function checkObjectExists(
+  mysql: any,
+  bucketId: number,
+  objectKey: string
+): Promise<boolean> {
+  const connection = await mysql.getConnection()
+  try {
+    const [rows] = await connection.query(
+      'SELECT COUNT(*) as count FROM tb_objects WHERE bucket_id = ? AND object_key = ? LIMIT 1',
+      [bucketId, objectKey]
+    )
+    return rows[0].count > 0
+  } finally {
+    connection.release()
+  }
+}
+
+/**
  * Bucket 이름으로 Bucket ID 조회
  */
 export async function getBucketIdByName(
@@ -130,26 +161,22 @@ export async function getBucketIdByName(
  * MySQL에 StoredObject 메타데이터 저장
  * 
  * @param mysql - MySQL 연결 객체
+ * @param bucketId - Bucket ID
  * @param fileInfo - 파일 정보
  * @returns 생성된 StoredObject의 UUID
  */
 export async function saveMetadataToDatabase(
   mysql: any,
+  bucketId: number,
   fileInfo: FileInfo
 ): Promise<string> {
-  // 1. Bucket ID 조회
-  const bucketId = await getBucketIdByName(mysql, fileInfo.bucket)
-  if (!bucketId) {
-    throw new Error(`버킷을 찾을 수 없습니다: ${fileInfo.bucket}`)
-  }
-
   const connection = await mysql.getConnection()
   try {
-    // 2. UUID 생성
+    // UUID 생성
     const objectId = crypto.randomUUID()
     const now = new Date()
 
-    // 3. TB_OBJECTS에 데이터 삽입
+    // TB_OBJECTS에 데이터 삽입
     await connection.query(
       `INSERT INTO tb_objects
         (id, bucket_id, object_key, storage_path, size, etag, status, created_at, updated_at) 
@@ -169,6 +196,12 @@ export async function saveMetadataToDatabase(
     )
 
     return objectId
+  } catch (error: any) {
+    // 중복 키 에러 처리
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw new Error(`이미 존재하는 객체입니다: ${fileInfo.bucket}/${fileInfo.objectKey}`)
+    }
+    throw error
   } finally {
     connection.release()
   }

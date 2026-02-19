@@ -10,6 +10,9 @@ import {
   saveFileToStorage,
   collectFileInfo,
   saveMetadataToDatabase,
+  getBucketIdByName,
+  checkObjectExists,
+  deleteFile,
 } from "../services/storage/fileStorage";
 import {
   sendErrorResponse,
@@ -102,7 +105,27 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         );
       }
 
-      // 5. Multipart 파일 데이터 받기
+      // 5. Bucket 존재 확인
+      const bucketId = await getBucketIdByName(fastify.mysql, bucket);
+      if (!bucketId) {
+        return sendErrorResponse(
+          reply,
+          404,
+          `버킷을 찾을 수 없습니다: ${bucket}`,
+        );
+      }
+
+      // 6. 객체 중복 확인
+      const exists = await checkObjectExists(fastify.mysql, bucketId, key);
+      if (exists) {
+        return sendErrorResponse(
+          reply,
+          409,
+          `이미 존재하는 객체입니다: ${bucket}/${key}`,
+        );
+      }
+
+      // 7. Multipart 파일 데이터 받기
       const fileData = await request.file();
       const fileValidation = validateFileData(fileData);
       if (!fileValidation.isValid && fileValidation.error) {
@@ -113,24 +136,34 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         );
       }
 
-      // 6. 파일 저장
-      const filePath = await saveFileToStorage(bucket, key, fileData!);
+      // 8. 파일 저장
+      let filePath: string | null = null;
+      try {
+        filePath = await saveFileToStorage(bucket, key, fileData!);
 
-      // 7. 파일 정보 수집
-      const fileInfo = await collectFileInfo(bucket, key, filePath, fileData!);
+        // 9. 파일 정보 수집
+        const fileInfo = await collectFileInfo(bucket, key, filePath, fileData!);
 
-      // 8. MySQL에 메타데이터 저장
-      const objectId = await saveMetadataToDatabase(fastify.mysql, fileInfo);
+        // 10. MySQL에 메타데이터 저장
+        const objectId = await saveMetadataToDatabase(fastify.mysql, bucketId, fileInfo);
 
-      // 9. 로그 기록
-      fastify.log.info({ objectId, fileInfo }, "파일 업로드 성공");
+        // 11. 로그 기록
+        fastify.log.info({ objectId, fileInfo }, "파일 업로드 성공");
 
-      // 10. 성공 응답 전송
-      const responseData = {
-        objectId,
-        ...fileInfo
-      };
-      return reply.code(201).send(createSuccessResponse(responseData));
+        // 12. 성공 응답 전송
+        const responseData = {
+          objectId,
+          ...fileInfo
+        };
+        return reply.code(201).send(createSuccessResponse(responseData));
+      } catch (dbError) {
+        // DB 저장 실패 시 파일 삭제 (롤백)
+        if (filePath) {
+          await deleteFile(filePath);
+          fastify.log.warn({ filePath }, "DB 저장 실패로 파일 삭제");
+        }
+        throw dbError;
+      }
     } catch (error) {
       fastify.log.error({ error }, "파일 업로드 오류");
       return sendErrorResponse(
