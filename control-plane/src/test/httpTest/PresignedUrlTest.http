@@ -1,0 +1,17 @@
+### Presigned URL 발급 (PUT 전용) - IntelliJ HTTP Client
+POST http://localhost:8080/api/storage/presigned-url
+Content-Type: application/json
+
+{
+  "bucket": "photos",
+  "key": "picture/a.jpg"
+}
+
+### (선택) key에 공백/한글/특수문자 포함 테스트
+POST http://localhost:8080/api/storage/presigned-url
+Content-Type: application/json
+
+{
+  "bucket": "photos",
+  "key": "works/해외/my photo(캐나다).jpg"
+}
