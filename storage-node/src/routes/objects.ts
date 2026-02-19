@@ -9,19 +9,12 @@ import {
   validateFileData,
   saveFileToStorage,
   collectFileInfo,
+  saveMetadataToDatabase,
 } from "../services/storage/fileStorage";
 import {
   sendErrorResponse,
   createSuccessResponse,
 } from "../services/response/apiResponse";
-
-/**
- * 객체 스토리지 API 엔드포인트
- *
- * PUT /objects/:bucket/:key
- * - Presigned URL 방식으로 파일 업로드
- * - 로컬 파일시스템에 저장
- */
 
 interface PutObjectQuery {
   bucket: string;
@@ -39,7 +32,8 @@ interface PutObjectParams {
 const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
   /**
    * PUT /objects/:bucket/:key
-   * 파일 업로드 엔드포인트
+   * - 파일 업로드 엔드포인트
+   * - 로컬 파일시스템에 저장
    */
   fastify.put<{
     Params: PutObjectParams;
@@ -125,14 +119,18 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       // 7. 파일 정보 수집
       const fileInfo = await collectFileInfo(bucket, key, filePath, fileData!);
 
-      // 8. TODO: MySQL에 메타데이터 저장
-      // await saveMetadataToDatabase(fastify.mysql, fileInfo)
+      // 8. MySQL에 메타데이터 저장
+      const objectId = await saveMetadataToDatabase(fastify.mysql, fileInfo);
 
       // 9. 로그 기록
-      fastify.log.info({ fileInfo }, "파일 업로드 성공");
+      fastify.log.info({ objectId, fileInfo }, "파일 업로드 성공");
 
       // 10. 성공 응답 전송
-      return reply.code(201).send(createSuccessResponse(fileInfo));
+      const responseData = {
+        objectId,
+        ...fileInfo
+      };
+      return reply.code(201).send(createSuccessResponse(responseData));
     } catch (error) {
       fastify.log.error({ error }, "파일 업로드 오류");
       return sendErrorResponse(
