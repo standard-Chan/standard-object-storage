@@ -1,0 +1,36 @@
+import { FastifyReply } from 'fastify'
+import { FileInfo } from '../storage/fileStorage'
+
+/**
+ * 에러 응답 전송
+ */
+export function sendErrorResponse(
+  reply: FastifyReply,
+  code: number,
+  message: string,
+  data?: any
+) {
+  return reply.code(code).send({
+    success: false,
+    message,
+    ...data
+  })
+}
+
+/**
+ * 성공 응답 생성
+ */
+export function createSuccessResponse(fileInfo: FileInfo) {
+  return {
+    success: true,
+    message: '파일이 성공적으로 업로드되었습니다',
+    data: {
+      bucket: fileInfo.bucket,
+      key: fileInfo.key,
+      filename: fileInfo.filename,
+      mimetype: fileInfo.mimetype,
+      size: fileInfo.size,
+      uploadedAt: fileInfo.uploadedAt
+    }
+  }
+}
