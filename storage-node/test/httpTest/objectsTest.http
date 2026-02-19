@@ -1,0 +1,187 @@
+
+@controlPlaneUrl = http://localhost:8080
+@storageNodeUrl = http://localhost:3000
+
+### 1. Presigned URL 발급 (PUT 전용)
+
+### 1-1. 사진 업로드용 Presigned URL 발급
+# @name presignedUrlPhoto
+POST {{controlPlaneUrl}}/api/storage/presigned-url
+Content-Type: application/json
+
+{
+  "bucket": "photos",
+  "key": "picture/a/한글파일(1).jpg"
+}
+
+### 2. 발급받은 URL로 파일 업로드
+
+### 2-1. 사진 파일 업로드 (위에서 발급받은 URL 사용)
+### 주의: 아래 URL을 위에서 받은 presignedUrl로 교체하세요
+PUT http://localhost:3000/objects/photos/picture/a/%ED%95%9C%EA%B8%80%ED%8C%8C%EC%9D%BC(1).jpg?bucket=photos&key=picture/a/한글파일(1).jpg&method=PUT&exp=1771493547&signature=ey0Q4GoNsAMgij-3nJeiO9QsNiBWSsZWGcvKamgjOwo
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="sample.jpg"
+Content-Type: image/jpeg
+
+< ./test-files/sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+### 성공 응답 예시:
+### {
+###   "success": true,
+###   "message": "파일이 성공적으로 업로드되었습니다",
+###   "data": {
+###     "bucket": "photos",
+###     "key": "picture/a.jpg",
+###     "filename": "sample.jpg",
+###     "mimetype": "image/jpeg",
+###     "size": 245678,
+###     "uploadedAt": "2026-02-19T07:30:00.000Z"
+###   }
+### }
+
+###############################################
+### 3. 다양한 파일 타입 업로드 테스트
+###############################################
+
+### 3-1. PDF 문서 업로드용 Presigned URL 발급
+# @name presignedUrlDocument
+POST {{controlPlaneUrl}}/api/storage/presigned-url
+Content-Type: application/json
+
+{
+  "bucket": "documents",
+  "key": "reports/2024/annual-report.pdf"
+}
+
+### 3-2. PDF 파일 업로드 (위에서 발급받은 URL 사용)
+### 주의: 실제 발급받은 URL로 교체하세요
+PUT http://localhost:9000/objects/documents/reports/2024/annual-report.pdf?bucket=documents&key=reports/2024/annual-report.pdf&method=PUT&exp=1771488648&signature=REPLACE_WITH_ACTUAL_SIGNATURE
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="report.pdf"
+Content-Type: application/pdf
+
+< ./test-files/sample.pdf
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###############################################
+### 4. 중첩된 경로 테스트
+###############################################
+
+### 4-1. 깊은 경로의 이미지 업로드용 Presigned URL 발급
+# @name presignedUrlDeepPath
+POST {{controlPlaneUrl}}/api/storage/presigned-url
+Content-Type: application/json
+
+{
+  "bucket": "photos",
+  "key": "users/123/albums/vacation/beach.png"
+}
+
+### 4-2. 깊은 경로에 파일 업로드
+### 주의: 실제 발급받은 URL로 교체하세요
+PUT http://localhost:9000/objects/photos/users/123/albums/vacation/beach.png?bucket=photos&key=users/123/albums/vacation/beach.png&method=PUT&exp=1771488648&signature=REPLACE_WITH_ACTUAL_SIGNATURE
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="beach.png"
+Content-Type: image/png
+
+< ./test-files/sample.png
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###############################################
+### 5. 오류 시나리오 테스트
+###############################################
+
+### 5-1. 잘못된 서명으로 업로드 시도 (403 Forbidden 예상)
+PUT {{storageNodeUrl}}/objects/photos/picture/test.jpg?bucket=photos&key=picture/test.jpg&method=PUT&exp=2000000000&signature=invalid_signature_here
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="test.jpg"
+Content-Type: image/jpeg
+
+< ./test-files/sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+### 예상 응답 (403):
+### {
+###   "success": false,
+###   "message": "서명이 유효하지 않습니다"
+### }
+
+### 5-2. 만료된 URL로 업로드 시도 (403 Forbidden 예상)
+PUT {{storageNodeUrl}}/objects/photos/picture/test.jpg?bucket=photos&key=picture/test.jpg&method=PUT&exp=1000000000&signature=REPLACE_WITH_ACTUAL_SIGNATURE
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="test.jpg"
+Content-Type: image/jpeg
+
+< ./test-files/sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+### 예상 응답 (403):
+### {
+###   "success": false,
+###   "message": "요청이 만료되었습니다"
+### }
+
+### 5-3. 파일 없이 업로드 시도 (400 Bad Request 예상)
+PUT {{storageNodeUrl}}/objects/photos/picture/test.jpg?bucket=photos&key=picture/test.jpg&method=PUT&exp=2000000000&signature=REPLACE_WITH_ACTUAL_SIGNATURE
+
+###
+### 예상 응답 (400):
+### {
+###   "success": false,
+###   "message": "파일이 업로드되지 않았습니다"
+### }
+
+###############################################
+### 6. 연결 테스트
+###############################################
+
+### 6-1. Storage Node 상태 확인
+GET {{storageNodeUrl}}/
+
+### 6-2. MySQL 연결 상태 확인
+GET {{storageNodeUrl}}/db-test
+
+### 6-3. Control Plane 상태 확인
+GET {{controlPlaneUrl}}/actuator/health
+
+###############################################
+### 사용 가이드
+###############################################
+###
+### 1. Control-plane과 Storage-node가 모두 실행 중인지 확인
+###    - Control-plane: http://localhost:8080
+###    - Storage-node: http://localhost:9000
+###
+### 2. 테스트 파일 준비
+###    storage-node/test-files/ 폴더에 다음 파일 준비:
+###    - sample.jpg
+###    - sample.png
+###    - sample.pdf
+###
+### 3. 테스트 실행 순서
+###    Step 1: Presigned URL 발급 요청 (Control-plane)
+###    Step 2: 응답에서 presignedUrl 복사
+###    Step 3: 복사한 URL로 파일 업로드 요청 (Storage-node)
+###
+### 4. VS Code에서 사용하는 경우
+###    - REST Client 확장 설치 필요
+###    - "Send Request" 링크를 클릭하여 요청 실행
+###
+### 5. IntelliJ에서 사용하는 경우
+###    - HTTP Client 기본 제공
+###    - Run 아이콘을 클릭하여 요청 실행
+###
