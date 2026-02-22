@@ -5,20 +5,29 @@ services:
   prometheus:
     image: prom/prometheus
     container_name: prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.enable-remote-write-receiver'
+    env_file:
+      - .env
+    environment:
+      - STORAGE_NODE_SERVER_IP=${STORAGE_NODE_SERVER_IP}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        sed "s/<STORAGE_NODE_SERVER_IP>/$${STORAGE_NODE_SERVER_IP}/g" /etc/prometheus/prometheus.yml.template > /etc/prometheus/prometheus.yml
+        /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --web.enable-remote-write-receiver
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml.template
       - prometheus-data:/prometheus
     restart: always
+
 
   grafana:
     image: grafana/grafana
     container_name: grafana
+    env_file:
+      - .env
     ports:
       - "3500:3000"
     environment:
@@ -28,34 +37,18 @@ services:
       - grafana-data:/var/lib/grafana
     restart: always
 
-  # 서버 CPU / Memory / Disk 정보 제공
-  node-exporter:
-    image: prom/node-exporter
-    container_name: node-exporter
-    ports:
-      - "9100:9100"
-    restart: always
-
-# Docker 컨테이너 정보 제공
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    container_name: cadvisor
-    ports:
-      - "8081:8080"
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-    restart: always
 
   k6:
     image: grafana/k6
     container_name: k6
+    env_file:
+      - .env
+    environment:
+      - K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true
     volumes:
-    # k6 테스트 스크립트 위치
       - ./k6:/scripts
     entrypoint: ["sleep", "infinity"]
+
 
 volumes:
   prometheus-data:
