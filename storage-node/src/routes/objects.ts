@@ -48,22 +48,10 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     try {
       const { bucket, objectKey, method, exp, signature } = request.query;
 
-      // 1. 필수 파라미터 검증
       validateRequiredParams(bucket, objectKey, method, exp, signature);
-
-      // 2. 만료 시간 검증
       validateExpiration(exp);
-
-      // 3. HTTP 메서드 검증
       validateMethod(method, "GET");
-
-      // 4. 서명 검증
-      const secretKey = process.env.PRESIGNED_URL_SECRET_KEY;
-      if (!secretKey) {
-        throw new Error("SECRET_KEY 환경 변수가 설정되지 않았습니다");
-      }
-      
-      validateRequestSignature(method, bucket, objectKey, exp, signature, secretKey);
+      validateRequestSignature(method, bucket, objectKey, exp, signature);
 
       // 5. Bucket 존재 확인 및 ID 조회
       // TODO: DB에서 버킷 존재 여부 확인
@@ -130,12 +118,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       validateMethod(method, "PUT");
 
       // 4. 서명 검증
-      const secretKey = process.env.PRESIGNED_URL_SECRET_KEY;
-      if (!secretKey) {
-        throw new Error("SECRET_KEY 환경 변수가 설정되지 않았습니다");
-      }
-      
-      validateRequestSignature(method, bucket, objectKey, exp, signature, secretKey);
+      validateRequestSignature(method, bucket, objectKey, exp, signature);
 
       // 5. Bucket 존재 확인 및 ID 조회
       const bucketId = await getBucketIdByName(fastify.mysql, bucket);

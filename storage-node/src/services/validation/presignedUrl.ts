@@ -1,5 +1,5 @@
-import { isExpired, verifySignature } from './crypto'
-import { HttpError } from '../../utils/HttpError'
+import { isExpired, verifySignature } from "./crypto";
+import { HttpError } from "../../utils/HttpError";
 
 /**
  * 필수 파라미터 검증
@@ -9,14 +9,12 @@ export function validateRequiredParams(
   objectKey: string,
   method: string,
   exp: string,
-  signature: string
+  signature: string,
 ): void {
   if (!bucket || !objectKey || !method || !exp || !signature) {
-    throw new HttpError(
-      400,
-      '필수 파라미터가 누락되었습니다',
-      { required: ['bucket', 'objectKey', 'method', 'exp', 'signature'] }
-    )
+    throw new HttpError(400, "필수 파라미터가 누락되었습니다", {
+      required: ["bucket", "objectKey", "method", "exp", "signature"],
+    });
   }
 }
 
@@ -24,32 +22,29 @@ export function validateRequiredParams(
  * 만료 시간 검증
  */
 export function validateExpiration(exp: string): void {
-  const expTimestamp = parseInt(exp, 10)
-  
+  const expTimestamp = parseInt(exp, 10);
+
   if (isNaN(expTimestamp)) {
-    throw new HttpError(
-      400,
-      '만료 시간(exp)이 유효하지 않습니다'
-    )
+    throw new HttpError(400, "만료 시간(exp)이 유효하지 않습니다");
   }
 
   if (isExpired(expTimestamp)) {
-    throw new HttpError(
-      403,
-      '요청이 만료되었습니다'
-    )
+    throw new HttpError(403, "요청이 만료되었습니다");
   }
 }
 
 /**
  * HTTP 메서드 검증
  */
-export function validateMethod(method: string, expectedMethod: string = 'PUT'): void {
+export function validateMethod(
+  method: string,
+  expectedMethod: string = "PUT",
+): void {
   if (method.toUpperCase() !== expectedMethod.toUpperCase()) {
     throw new HttpError(
       400,
-      `메서드가 일치하지 않습니다. 요청: ${expectedMethod}, 서명: ${method}`
-    )
+      `메서드가 일치하지 않습니다. 요청: ${expectedMethod}, 서명: ${method}`,
+    );
   }
 }
 
@@ -62,22 +57,23 @@ export function validateRequestSignature(
   key: string,
   exp: string,
   signature: string,
-  secretKey: string
 ): void {
-  const expTimestamp = parseInt(exp, 10)
+  const secretKey = process.env.PRESIGNED_URL_SECRET_KEY;
+  if (!secretKey) {
+    throw new HttpError(500, "SECRET_KEY 환경 변수가 설정되지 않았습니다");
+  }
+
+  const expTimestamp = parseInt(exp, 10);
   const isValidSignature = verifySignature(
     method.toUpperCase(),
     bucket,
     key,
     expTimestamp,
     signature,
-    secretKey
-  )
+    secretKey,
+  );
 
   if (!isValidSignature) {
-    throw new HttpError(
-      403,
-      '서명이 유효하지 않습니다'
-    )
+    throw new HttpError(403, "서명이 유효하지 않습니다");
   }
 }
