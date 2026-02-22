@@ -9,11 +9,19 @@ export interface MySQLPluginOptions extends FastifyMySQLOptions {
 }
 
 export default fp<MySQLPluginOptions>(async (fastify) => {
+  // 환경변수로 MySQL 사용 여부 결정 (기본값: true)
+  const enableMySQL = process.env.ENABLE_MYSQL !== "false";
+
+  if (!enableMySQL) {
+    fastify.log.info("MySQL plugin is disabled by ENABLE_MYSQL environment variable");
+    return;
+  }
+
   const mysqlOptions: FastifyMySQLOptions = {
     promise: true,
     connectionString: buildMySQLConnectionString(),
 
-    connectionLimit: 20,
+    connectionLimit: 10,
     waitForConnections: true,
     queueLimit: 0,
   };
@@ -24,10 +32,10 @@ export default fp<MySQLPluginOptions>(async (fastify) => {
   fastify.addHook("onReady", async function () {
     try {
       const connection = await fastify.mysql.getConnection();
-      fastify.log.info("MySQL 데이터베이스에 성공적으로 연결되었습니다");
+      fastify.log.info("MySQL database connection established successfully");
       connection.release();
     } catch (err) {
-      fastify.log.error({ err }, "MySQL 연결 실패");
+      fastify.log.error({ err }, "MySQL connection failed");
       throw err;
     }
   });
@@ -35,7 +43,7 @@ export default fp<MySQLPluginOptions>(async (fastify) => {
   // 서버 종료 시 연결 정리
   fastify.addHook("onClose", async (instance) => {
     await instance.mysql.pool.end();
-    instance.log.info("MySQL 연결이 종료되었습니다");
+    instance.log.info("MySQL connection closed");
   });
 });
 
