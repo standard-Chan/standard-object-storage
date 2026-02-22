@@ -2,6 +2,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { SharedArray } from 'k6/data';
 import { randomItem } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
+import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.1/index.js';
 
 /**
  * k6 부하 테스트 스크립트
@@ -9,9 +10,11 @@ import { randomItem } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
  * 사용법:
  *  --vus = 인원수
  *  --duration 지속 시간
- *   k6 run --vus 10 --duration 30s k6-load-test.js
- *   k6 run --vus 50 --duration 1m k6-load-test.js
+ *  --out experimental-prometheus-rw=http://localhost:9090/api/v1/write : 프로메테우스로 전달 
+ *   k6 run --vus 100 --duration 30s --out experimental-prometheus-rw=http://localhost:9090/api/v1/write k6-load-test.js
+ *   k6 run --vus 100 --duration 1m --out experimental-prometheus-rw=http://localhost:9090/api/v1/write k6-load-test.js
  *   k6 run --vus 100 --duration 2m --env BUCKET=my-bucket k6-load-test.js
+ * k6 run --vus 1000 --duration 10s --out experimental-prometheus-rw=http://localhost:9090/api/v1/write k6-load-test.js
  * 
  * 옵션:
  *   --vus: 동시 가상 사용자 수 (기본값: 10)
@@ -24,13 +27,13 @@ import { randomItem } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 const CONTROL_PLANE_URL = __ENV.CONTROL_PLANE_URL || 'http://localhost:8080';
 const BUCKET = __ENV.BUCKET || 'bucket1';
 
-// 파일 크기 정의 (바이트)
+// 파일 크기 정의 및 파일 로드 (바이트)
+// init context에서 로드되어 모든 VU가 공유 (메모리 효율적)
 const FILE_SIZES = [
-  // { label: '1KB', size: 1 * 1024 },
-  // { label: '10KB', size: 10 * 1024 },
-  // { label: '100KB', size: 100 * 1024 },
-  { label: '1MB', size: 1 * 1024 * 1024 },
-  { label: '10MB', size: 10 * 1024 * 1024 },
+  { label: '1MB', size: 1 * 1024 * 1024, data: open('./test-files/1MB.bin', 'b') },
+  { label: '10MB', size: 10 * 1024 * 1024, data: open('./test-files/10MB.bin', 'b') },
+  // { label: '100MB', size: 100 * 1024 * 1024, data: open('./test-files/100MB.bin', 'b') },
+  // { label: '1GB', size: 1 * 1024 * 1024 * 1024, data: open('./test-files/1GB.bin', 'b') },
 ];
 
 // k6 테스트 옵션
@@ -61,33 +64,6 @@ export const options = {
   // 요약 통계 설정
   summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
 };
-
-/**
- * 랜덤 데이터 생성
- */
-function generateRandomData(size) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  
-  // 작은 파일은 문자열로, 큰 파일은 반복 패턴으로
-  if (size <= 100 * 1024) {
-    for (let i = 0; i < size; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-  } else {
-    // 큰 파일은 1KB 패턴을 반복
-    const pattern = Array(1024).fill(null).map(() => 
-      chars.charAt(Math.floor(Math.random() * chars.length))
-    ).join('');
-    
-    const repeatCount = Math.floor(size / 1024);
-    const remainder = size % 1024;
-    
-    result = pattern.repeat(repeatCount) + pattern.slice(0, remainder);
-  }
-  
-  return result;
-}
 
 /**
  * Presigned URL 발급
@@ -134,24 +110,15 @@ function getPresignedUrl(bucket, objectKey) {
  * 파일 업로드
  */
 function uploadFile(presignedUrl, fileData, fileName, fileSize) {
-  // FormData 생성
-  const boundary = '----k6Boundary' + Math.random().toString(36).substring(7);
-  
-  // multipart/form-data 바디 구성
-  let body = '';
-  body += `--${boundary}\r\n`;
-  body += `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n`;
-  body += `Content-Type: application/octet-stream\r\n\r\n`;
-  body += fileData;
-  body += `\r\n--${boundary}--\r\n`;
+  // k6의 http.file()을 사용하여 바이너리 파일을 올바르게 전송
+  const formData = {
+    file: http.file(fileData, fileName, 'application/octet-stream'),
+  };
 
   const response = http.put(
     presignedUrl,
-    body,
+    formData,
     {
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
       tags: { 
         name: 'upload_file',
         file_size: fileSizeLabel(fileSize),
@@ -204,8 +171,8 @@ export default function () {
     return;
   }
   
-  // 2. 파일 데이터 생성
-  const fileData = generateRandomData(selectedFile.size);
+  // 2. 미리 로드된 파일 데이터 사용
+  const fileData = selectedFile.data;
   const fileName = `test-${selectedFile.label.toLowerCase()}-${random}.bin`;
   
   // 3. 파일 업로드
@@ -244,4 +211,12 @@ export function teardown(data) {
   console.log('\n========================================');
   console.log('✅ k6 부하 테스트 완료');
   console.log('========================================');
+}
+
+export function handleSummary(data) {
+  // textSummary를 사용하여 상세 통계 출력
+  return {
+    'stdout': textSummary(data, { indent: ' ', enableColors: true }),
+    'summary.json': JSON.stringify(data, null, 2),
+  };
 }
