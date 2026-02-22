@@ -109,6 +109,72 @@ export async function deleteFile(filePath: string): Promise<void> {
 }
 
 /**
+ * 확장자로 Content-Type 유추
+ */
+export function getContentTypeFromExtension(objectKey: string): string {
+  const ext = path.extname(objectKey).toLowerCase()
+  const contentTypeMap: { [key: string]: string } = {
+    // 이미지
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.bmp': 'image/bmp',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    // 문서
+    '.pdf': 'application/pdf',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // 텍스트
+    '.txt': 'text/plain',
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json',
+    '.xml': 'application/xml',
+    // 비디오
+    '.mp4': 'video/mp4',
+    '.avi': 'video/x-msvideo',
+    '.mov': 'video/quicktime',
+    '.wmv': 'video/x-ms-wmv',
+    // 오디오
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    // 아카이브
+    '.zip': 'application/zip',
+    '.rar': 'application/x-rar-compressed',
+    '.tar': 'application/x-tar',
+    '.gz': 'application/gzip',
+  }
+  
+  return contentTypeMap[ext] || 'application/octet-stream'
+}
+
+/**
+ * 파일 읽기 스트림 생성
+ */
+export function getFileStream(bucket: string, objectKey: string): fs.ReadStream {
+  const filePath = path.join(process.cwd(), 'uploads', bucket, objectKey)
+  
+  // 파일 존재 여부 확인 (동기)
+  if (!fs.existsSync(filePath)) {
+    throw new HttpError(
+      404,
+      `파일을 찾을 수 없습니다: ${bucket}/${objectKey}`
+    )
+  }
+  
+  return fs.createReadStream(filePath)
+}
+
+/**
  * 객체가 이미 존재하는지 확인
  */
 export async function checkObjectExists(

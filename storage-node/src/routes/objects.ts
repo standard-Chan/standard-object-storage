@@ -13,6 +13,8 @@ import {
   getBucketIdByName,
   checkObjectExists,
   deleteFile,
+  getFileStream,
+  getContentTypeFromExtension,
 } from "../services/storage/fileStorage";
 import {
   sendErrorResponse,
@@ -34,6 +36,76 @@ interface PutObjectParams {
 }
 
 const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
+  /**
+   * GET /objects/:bucket/:key
+   * - 파일 다운로드 엔드포인트
+   * - Presigned URL 검증 후 파일 스트림 반환
+   */
+  fastify.get<{
+    Params: PutObjectParams;
+    Querystring: PutObjectQuery;
+  }>("/:bucket/*", async function (request, reply) {
+    try {
+      const { bucket, objectKey, method, exp, signature } = request.query;
+
+      // 1. 필수 파라미터 검증
+      validateRequiredParams(bucket, objectKey, method, exp, signature);
+
+      // 2. 만료 시간 검증
+      validateExpiration(exp);
+
+      // 3. HTTP 메서드 검증
+      validateMethod(method, "GET");
+
+      // 4. 서명 검증
+      const secretKey = process.env.PRESIGNED_URL_SECRET_KEY;
+      if (!secretKey) {
+        throw new Error("SECRET_KEY 환경 변수가 설정되지 않았습니다");
+      }
+      
+      validateRequestSignature(method, bucket, objectKey, exp, signature, secretKey);
+
+      // 5. Bucket 존재 확인 및 ID 조회
+      // TODO: DB에서 버킷 존재 여부 확인
+      // const bucketId = await getBucketIdByName(fastify.mysql, bucket);
+
+      // 6. 객체 존재 확인
+      // TODO: DB에서 객체 메타데이터 조회
+      // const objectMetadata = await getObjectMetadata(fastify.mysql, bucketId, objectKey);
+
+      // 7. 파일 스트림 생성
+      const fileStream = getFileStream(bucket, objectKey);
+
+      // 8. Content-Type 설정
+      const contentType = getContentTypeFromExtension(objectKey);
+      reply.header('Content-Type', contentType);
+
+      // 9. 파일 스트림 반환
+      fastify.log.info({ bucket, objectKey, contentType }, "파일 다운로드 시작");
+      return reply.send(fileStream);
+    } catch (error) {
+      // HttpError는 상태 코드와 메시지를 포함
+      if (error instanceof HttpError) {
+        fastify.log.warn({ error: error.message, statusCode: error.statusCode }, "검증 실패");
+        return sendErrorResponse(
+          reply,
+          error.statusCode,
+          error.message,
+          error.data,
+        );
+      }
+      
+      // 기타 예상치 못한 에러
+      fastify.log.error({ error }, "파일 다운로드 오류");
+      return sendErrorResponse(
+        reply,
+        500,
+        "파일 다운로드 중 오류가 발생했습니다",
+        { error: error instanceof Error ? error.message : "알 수 없는 오류" },
+      );
+    }
+  });
+
   /**
    * PUT /objects/:bucket/:key
    * - 파일 업로드 엔드포인트
