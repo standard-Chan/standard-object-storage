@@ -9,9 +9,6 @@ import {
   validateFileData,
   saveFileToStorage,
   collectFileInfo,
-  saveMetadataToDatabase,
-  getBucketIdByName,
-  checkObjectExists,
   deleteFile,
   getFileStream,
   getContentTypeFromExtension,
@@ -69,12 +66,12 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       reply.header('Content-Type', contentType);
 
       // 9. 파일 스트림 반환
-      fastify.log.info({ bucket, objectKey, contentType }, "파일 다운로드 시작");
+      fastify.log.info({ bucket, objectKey, contentType }, "File download started");
       return reply.send(fileStream);
     } catch (error) {
       // HttpError는 상태 코드와 메시지를 포함
       if (error instanceof HttpError) {
-        fastify.log.warn({ error: error.message, statusCode: error.statusCode }, "검증 실패");
+        fastify.log.warn({ error: error.message, statusCode: error.statusCode }, "Validation failed");
         return sendErrorResponse(
           reply,
           error.statusCode,
@@ -84,7 +81,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       }
       
       // 기타 예상치 못한 에러
-      fastify.log.error({ error }, "파일 다운로드 오류");
+      fastify.log.error({ error }, "File download error");
       return sendErrorResponse(
         reply,
         500,
@@ -108,23 +105,20 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     try {
       const { bucket, objectKey, method, exp, signature } = request.query;
 
-      // 1. 필수 파라미터 검증
+      // 검증 로직
       validateRequiredParams(bucket, objectKey, method, exp, signature);
-
-      // 2. 만료 시간 검증
       validateExpiration(exp);
-
-      // 3. HTTP 메서드 검증
       validateMethod(method, "PUT");
-
-      // 4. 서명 검증
       validateRequestSignature(method, bucket, objectKey, exp, signature);
 
-      // 5. Bucket 존재 확인 및 ID 조회
-      const bucketId = await getBucketIdByName(fastify.mysql, bucket);
+      // 로그: PUT 요청 objectKey
+      fastify.log.info({ objectKey }, "PUT request received");
 
-      // 6. 객체 중복 확인
-      await checkObjectExists(fastify.mysql, bucketId, objectKey, bucket);
+      // // 5. Bucket 존재 확인 및 ID 조회
+      // const bucketId = await getBucketIdByName(fastify.mysql, bucket);
+
+      // // 6. 객체 중복 확인
+      // await checkObjectExists(fastify.mysql, bucketId, objectKey, bucket);
 
       // 7. Multipart 파일 데이터 받기 및 검증
       const fileData = await request.file();
@@ -137,15 +131,19 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         // 9. 파일 정보 수집
         const fileInfo = await collectFileInfo(bucket, objectKey, filePath, fileData!);
 
-        // 10. MySQL에 메타데이터 저장
-        const objectId = await saveMetadataToDatabase(fastify.mysql, bucketId, fileInfo);7
+        // // 10. MySQL에 메타데이터 저장
+        // const objectId = await saveMetadataToDatabase(fastify.mysql, bucketId, fileInfo);
 
-        // 11. 로그 기록
-        fastify.log.info({ objectId, fileInfo }, "파일 업로드 성공");
+        // // 11. 로그 기록
+        // fastify.log.info({ objectId, fileInfo }, "파일 업로드 성공");
 
         // 12. 성공 응답 전송
+        // const responseData = {
+        //   objectId,
+        //   ...fileInfo
+        // };
+
         const responseData = {
-          objectId,
           ...fileInfo
         };
         return reply.code(201).send(createSuccessResponse(responseData));
@@ -153,14 +151,14 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         // DB 저장 실패 시 파일 삭제 (롤백)
         if (filePath) {
           await deleteFile(filePath);
-          fastify.log.warn({ filePath }, "DB 저장 실패로 파일 삭제");
+          fastify.log.warn({ filePath }, "File deleted due to DB save failure");
         }
         throw dbError;
       }
     } catch (error) {
       // HttpError는 상태 코드와 메시지를 포함
       if (error instanceof HttpError) {
-        fastify.log.warn({ error: error.message, statusCode: error.statusCode }, "검증 실패");
+        fastify.log.warn({ error: error.message, statusCode: error.statusCode }, "Validation failed");
         return sendErrorResponse(
           reply,
           error.statusCode,
@@ -170,7 +168,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       }
       
       // 기타 예상치 못한 에러
-      fastify.log.error({ error }, "파일 업로드 오류");
+      fastify.log.error({ error }, "File upload error");
       return sendErrorResponse(
         reply,
         500,
