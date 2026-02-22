@@ -21,8 +21,20 @@ public class PresignedUrlController {
     ) {
         String presignedUrl = presignedUrlService.generatePutPresignedUrl(
             request.getBucket(),
-            request.getKey()
+            request.getObjectKey()
         );
         return new PresignedUrlResponse(presignedUrl);
     }
+
+    @PostMapping("/presigned-url/get")
+    public PresignedUrlResponse createGetPresignedUrl(
+        @RequestBody PresignedUrlRequest request
+    ) {
+        String presignedUrl = presignedUrlService.generateGetPresignedUrl(
+            request.getBucket(),
+            request.getObjectKey()
+        );
+        return new PresignedUrlResponse(presignedUrl);
+    }
+
 }

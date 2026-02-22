@@ -13,30 +13,55 @@ public class PresignedUrlService {
 
     @Value("${SECRET_KEY}")
     private String SECRET_KEY;
+
     @Value("${NODE_ENDPOINT}")
     private String NODE_ENDPOINT;
 
-    public String generatePutPresignedUrl(String bucket, String key) {
+    public String generatePutPresignedUrl(String bucket, String objectKey) {
+        return generatePresignedUrl(bucket, objectKey, HttpMethod.PUT.name());
+    }
+
+    public String generateGetPresignedUrl(String bucket, String objectKey) {
+        return generatePresignedUrl(bucket, objectKey, HttpMethod.GET.name());
+    }
+
+    // 공통 Presigned URL 생성 로직
+    private String generatePresignedUrl(
+        String bucket,
+        String objectKey,
+        String method
+    ) {
         try {
+
             if ((SECRET_KEY == null || SECRET_KEY.isBlank())
                 || (NODE_ENDPOINT == null || NODE_ENDPOINT.isBlank())) {
                 throw new IllegalStateException("환경 변수 SECRET_KEY 또는 NODE_ENDPOINT가 설정되지 않았습니다.");
             }
-            String method = HttpMethod.PUT.name();
-            long expiresAt = Instant.now().plusSeconds(60 * 15).getEpochSecond();
 
-            String signature = generateSignature(bucket, key, method, expiresAt);
+            long expiresAt = Instant.now()
+                .plusSeconds(60 * 15)
+                .getEpochSecond();
 
-            String encodedBucket = UriUtils.encodePathSegment(bucket, StandardCharsets.UTF_8);
-            String encodedKey = UriUtils.encodePath(key, StandardCharsets.UTF_8);
+            String signature = generateSignature(
+                bucket,
+                objectKey,
+                method,
+                expiresAt
+            );
+
+            String encodedBucket =
+                UriUtils.encodePathSegment(bucket, StandardCharsets.UTF_8);
+
+            String encodedObjectKey =
+                UriUtils.encodePath(objectKey, StandardCharsets.UTF_8);
 
             return String.format(
-                "%s/objects/%s/%s?bucket=%s&key=%s&method=%s&exp=%d&signature=%s",
+                "%s/objects/%s/%s?bucket=%s&objectKey=%s&method=%s&exp=%d&signature=%s",
                 NODE_ENDPOINT,
                 encodedBucket,
-                encodedKey,
+                encodedObjectKey,
                 bucket,
-                key,
+                objectKey,
                 method,
                 expiresAt,
                 signature
@@ -49,17 +74,20 @@ public class PresignedUrlService {
 
     private String generateSignature(
         String bucket,
-        String key,
+        String objectKey,
         String method,
         long exp
     ) throws Exception {
         String canonicalString = String.format(
-            "bucket=%s&key=%s&method=%s&exp=%d",
+            "bucket=%s&objectKey=%s&method=%s&exp=%d",
             bucket,
-            key,
+            objectKey,
             method,
             exp
         );
-        return CryptoUtils.hmacSha256Base64Url(canonicalString, SECRET_KEY);
+        return CryptoUtils.hmacSha256Base64Url(
+            canonicalString,
+            SECRET_KEY
+        );
     }
 }
