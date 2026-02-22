@@ -15,7 +15,7 @@ export function validateRequiredParams(
     throw new HttpError(
       400,
       '필수 파라미터가 누락되었습니다',
-      { required: ['bucket', 'key', 'method', 'exp', 'signature'] }
+      { required: ['bucket', 'objectKey', 'method', 'exp', 'signature'] }
     )
   }
 }
