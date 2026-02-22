@@ -5,6 +5,7 @@ import { pipeline } from 'stream/promises'
 import { MultipartFile } from '@fastify/multipart'
 import crypto from 'crypto'
 import { HttpError } from '../../utils/HttpError'
+import { CONTENT_TYPE_MAP, DEFAULT_CONTENT_TYPE } from '../../constants/contentTypes'
 
 /**
  * 객체 상태 enum
@@ -113,48 +114,7 @@ export async function deleteFile(filePath: string): Promise<void> {
  */
 export function getContentTypeFromExtension(objectKey: string): string {
   const ext = path.extname(objectKey).toLowerCase()
-  const contentTypeMap: { [key: string]: string } = {
-    // 이미지
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.bmp': 'image/bmp',
-    '.webp': 'image/webp',
-    '.svg': 'image/svg+xml',
-    '.ico': 'image/x-icon',
-    // 문서
-    '.pdf': 'application/pdf',
-    '.doc': 'application/msword',
-    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    '.xls': 'application/vnd.ms-excel',
-    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    '.ppt': 'application/vnd.ms-powerpoint',
-    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    // 텍스트
-    '.txt': 'text/plain',
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-    '.json': 'application/json',
-    '.xml': 'application/xml',
-    // 비디오
-    '.mp4': 'video/mp4',
-    '.avi': 'video/x-msvideo',
-    '.mov': 'video/quicktime',
-    '.wmv': 'video/x-ms-wmv',
-    // 오디오
-    '.mp3': 'audio/mpeg',
-    '.wav': 'audio/wav',
-    '.ogg': 'audio/ogg',
-    // 아카이브
-    '.zip': 'application/zip',
-    '.rar': 'application/x-rar-compressed',
-    '.tar': 'application/x-tar',
-    '.gz': 'application/gzip',
-  }
-  
-  return contentTypeMap[ext] || 'application/octet-stream'
+  return CONTENT_TYPE_MAP[ext] || DEFAULT_CONTENT_TYPE
 }
 
 /**
