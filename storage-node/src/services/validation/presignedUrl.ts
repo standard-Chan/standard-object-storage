@@ -6,12 +6,12 @@ import { HttpError } from '../../utils/HttpError'
  */
 export function validateRequiredParams(
   bucket: string,
-  key: string,
+  objectKey: string,
   method: string,
   exp: string,
   signature: string
 ): void {
-  if (!bucket || !key || !method || !exp || !signature) {
+  if (!bucket || !objectKey || !method || !exp || !signature) {
     throw new HttpError(
       400,
       '필수 파라미터가 누락되었습니다',

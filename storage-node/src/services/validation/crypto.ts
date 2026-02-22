@@ -36,7 +36,7 @@ export function hmacSha256Base64Url(data: string, secret: string): string {
  * 
  * @param method - HTTP 메서드 (PUT, GET 등)
  * @param bucket - 버킷 이름
- * @param key - 객체 키 (경로)
+ * @param objectKey - 객체 키 (경로)
  * @param exp - 만료 시간 (Unix timestamp)
  * @param signature - 검증할 서명
  * @param secret - 비밀 키
@@ -45,14 +45,14 @@ export function hmacSha256Base64Url(data: string, secret: string): string {
 export function verifySignature(
   method: string,
   bucket: string,
-  key: string,
+  objectKey: string,
   exp: number,
   signature: string,
   secret: string
 ): boolean {
   // 서명 데이터 생성: bucket=...&key=...&method=...&exp=...
   // Java의 PresignedUrlService.generateSignature()와 동일한 형식
-  const data = `bucket=${bucket}&key=${key}&method=${method}&exp=${exp}`
+  const data = `bucket=${bucket}&objectKey=${objectKey}&method=${method}&exp=${exp}`
   
   // 기대하는 서명 생성
   const expectedSignature = hmacSha256Base64Url(data, secret)

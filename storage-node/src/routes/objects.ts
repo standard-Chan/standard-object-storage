@@ -22,7 +22,7 @@ import { HttpError } from "../utils/HttpError";
 
 interface PutObjectQuery {
   bucket: string;
-  key: string;
+  objectKey: string;
   method: string;
   exp: string;
   signature: string;
@@ -46,10 +46,10 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     let filePath: string | null = null;
     
     try {
-      const { bucket, key, method, exp, signature } = request.query;
+      const { bucket, objectKey, method, exp, signature } = request.query;
 
       // 1. 필수 파라미터 검증
-      validateRequiredParams(bucket, key, method, exp, signature);
+      validateRequiredParams(bucket, objectKey, method, exp, signature);
 
       // 2. 만료 시간 검증
       validateExpiration(exp);
@@ -63,13 +63,13 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         throw new Error("SECRET_KEY 환경 변수가 설정되지 않았습니다");
       }
       
-      validateRequestSignature(method, bucket, key, exp, signature, secretKey);
+      validateRequestSignature(method, bucket, objectKey, exp, signature, secretKey);
 
       // 5. Bucket 존재 확인 및 ID 조회
       const bucketId = await getBucketIdByName(fastify.mysql, bucket);
 
       // 6. 객체 중복 확인
-      await checkObjectExists(fastify.mysql, bucketId, key, bucket);
+      await checkObjectExists(fastify.mysql, bucketId, objectKey, bucket);
 
       // 7. Multipart 파일 데이터 받기 및 검증
       const fileData = await request.file();
@@ -77,13 +77,13 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
 
       // 8. 파일 저장
       try {
-        filePath = await saveFileToStorage(bucket, key, fileData!);
+        filePath = await saveFileToStorage(bucket, objectKey, fileData!);
 
         // 9. 파일 정보 수집
-        const fileInfo = await collectFileInfo(bucket, key, filePath, fileData!);
+        const fileInfo = await collectFileInfo(bucket, objectKey, filePath, fileData!);
 
         // 10. MySQL에 메타데이터 저장
-        const objectId = await saveMetadataToDatabase(fastify.mysql, bucketId, fileInfo);
+        const objectId = await saveMetadataToDatabase(fastify.mysql, bucketId, fileInfo);7
 
         // 11. 로그 기록
         fastify.log.info({ objectId, fileInfo }, "파일 업로드 성공");
