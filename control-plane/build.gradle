@@ -46,6 +46,10 @@ dependencies {
 
     // read .env
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+
+    // 모니터링
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
 }
 
 tasks.named('test') {
