@@ -1,5 +1,6 @@
 import fp from 'fastify-plugin'
 import multipart from '@fastify/multipart'
+import { MB, GB } from '../constants/sizes'
 
 /**
  * Multipart/form-data 파일 업로드 플러그인
@@ -12,10 +13,10 @@ export default fp(async (fastify) => {
   fastify.register(multipart, {
     limits: {
       fieldNameSize: 100,       // 필드명 최대 크기 (바이트)
-      fieldSize: 1000000,       // 필드 값 최대 크기 (1MB)
+      fieldSize: 1 * MB,        // 필드 값 최대 크기 (1MB)
       fields: 10,               // 비파일 필드 최대 개수
-      fileSize: 1024 * 1024 * 1024, // 파일 최대 크기 (1GB)
-      files: 1,                // 파일 최대 개수
+      fileSize: 1 * GB,         // 파일 최대 크기 (1GB)
+      files: 1,                 // 파일 최대 개수
       headerPairs: 2000,        // 헤더 키-값 쌍 최대 개수
       parts: 1000               // 파트 최대 개수
     }
