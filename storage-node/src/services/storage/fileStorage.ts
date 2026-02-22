@@ -4,6 +4,7 @@ import fs from 'fs'
 import { pipeline } from 'stream/promises'
 import { MultipartFile } from '@fastify/multipart'
 import crypto from 'crypto'
+import { HttpError } from '../../utils/HttpError'
 
 /**
  * 객체 상태 enum
@@ -32,20 +33,13 @@ export interface FileInfo {
 /**
  * 파일 업로드 데이터 검증
  */
-export function validateFileData(data: MultipartFile | undefined): {
-  isValid: boolean
-  error?: { code: number; message: string }
-} {
+export function validateFileData(data: MultipartFile | undefined): void {
   if (!data) {
-    return {
-      isValid: false,
-      error: {
-        code: 400,
-        message: '파일이 업로드되지 않았습니다'
-      }
-    }
+    throw new HttpError(
+      400,
+      '파일이 업로드되지 않았습니다'
+    )
   }
-  return { isValid: true }
 }
 
 /**
@@ -120,15 +114,21 @@ export async function deleteFile(filePath: string): Promise<void> {
 export async function checkObjectExists(
   mysql: any,
   bucketId: number,
-  objectKey: string
-): Promise<boolean> {
+  objectKey: string,
+  bucket: string
+): Promise<void> {
   const connection = await mysql.getConnection()
   try {
     const [rows] = await connection.query(
       'SELECT COUNT(*) as count FROM tb_objects WHERE bucket_id = ? AND object_key = ? LIMIT 1',
       [bucketId, objectKey]
     )
-    return rows[0].count > 0
+    if (rows[0].count > 0) {
+      throw new HttpError(
+        409,
+        `이미 존재하는 객체입니다: ${bucket}/${objectKey}`
+      )
+    }
   } finally {
     connection.release()
   }
@@ -140,7 +140,7 @@ export async function checkObjectExists(
 export async function getBucketIdByName(
   mysql: any,
   bucketName: string
-): Promise<number | null> {
+): Promise<number> {
   const connection = await mysql.getConnection()
   try {
     const [rows] = await connection.query(
@@ -148,10 +148,13 @@ export async function getBucketIdByName(
       [bucketName]
     )
     
-    if (rows && rows.length > 0) {
-      return rows[0].id
+    if (!rows || rows.length === 0) {
+      throw new HttpError(
+        404,
+        `버킷을 찾을 수 없습니다: ${bucketName}`
+      )
     }
-    return null
+    return rows[0].id
   } finally {
     connection.release()
   }

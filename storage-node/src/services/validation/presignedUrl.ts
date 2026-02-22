@@ -1,16 +1,5 @@
 import { isExpired, verifySignature } from './crypto'
-
-/**
- * 검증 결과 타입
- */
-export interface ValidationResult {
-  isValid: boolean
-  error?: {
-    code: number
-    message: string
-    data?: any
-  }
-}
+import { HttpError } from '../../utils/HttpError'
 
 /**
  * 필수 파라미터 검증
@@ -21,63 +10,47 @@ export function validateRequiredParams(
   method: string,
   exp: string,
   signature: string
-): ValidationResult {
+): void {
   if (!bucket || !key || !method || !exp || !signature) {
-    return {
-      isValid: false,
-      error: {
-        code: 400,
-        message: '필수 파라미터가 누락되었습니다',
-        data: { required: ['bucket', 'key', 'method', 'exp', 'signature'] }
-      }
-    }
+    throw new HttpError(
+      400,
+      '필수 파라미터가 누락되었습니다',
+      { required: ['bucket', 'key', 'method', 'exp', 'signature'] }
+    )
   }
-  return { isValid: true }
 }
 
 /**
  * 만료 시간 검증
  */
-export function validateExpiration(exp: string): ValidationResult {
+export function validateExpiration(exp: string): void {
   const expTimestamp = parseInt(exp, 10)
   
   if (isNaN(expTimestamp)) {
-    return {
-      isValid: false,
-      error: {
-        code: 400,
-        message: '만료 시간(exp)이 유효하지 않습니다'
-      }
-    }
+    throw new HttpError(
+      400,
+      '만료 시간(exp)이 유효하지 않습니다'
+    )
   }
 
   if (isExpired(expTimestamp)) {
-    return {
-      isValid: false,
-      error: {
-        code: 403,
-        message: '요청이 만료되었습니다'
-      }
-    }
+    throw new HttpError(
+      403,
+      '요청이 만료되었습니다'
+    )
   }
-
-  return { isValid: true }
 }
 
 /**
  * HTTP 메서드 검증
  */
-export function validateMethod(method: string, expectedMethod: string = 'PUT'): ValidationResult {
+export function validateMethod(method: string, expectedMethod: string = 'PUT'): void {
   if (method.toUpperCase() !== expectedMethod.toUpperCase()) {
-    return {
-      isValid: false,
-      error: {
-        code: 400,
-        message: `메서드가 일치하지 않습니다. 요청: ${expectedMethod}, 서명: ${method}`
-      }
-    }
+    throw new HttpError(
+      400,
+      `메서드가 일치하지 않습니다. 요청: ${expectedMethod}, 서명: ${method}`
+    )
   }
-  return { isValid: true }
 }
 
 /**
@@ -90,7 +63,7 @@ export function validateRequestSignature(
   exp: string,
   signature: string,
   secretKey: string
-): ValidationResult {
+): void {
   const expTimestamp = parseInt(exp, 10)
   const isValidSignature = verifySignature(
     method.toUpperCase(),
@@ -102,14 +75,9 @@ export function validateRequestSignature(
   )
 
   if (!isValidSignature) {
-    return {
-      isValid: false,
-      error: {
-        code: 403,
-        message: '서명이 유효하지 않습니다'
-      }
-    }
+    throw new HttpError(
+      403,
+      '서명이 유효하지 않습니다'
+    )
   }
-
-  return { isValid: true }
 }
