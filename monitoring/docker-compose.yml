@@ -20,7 +20,6 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml.template
       - prometheus-data:/prometheus
-    restart: always
 
 
   grafana:
@@ -35,7 +34,6 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
     volumes:
       - grafana-data:/var/lib/grafana
-    restart: always
 
 
   k6:
