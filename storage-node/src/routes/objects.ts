@@ -18,6 +18,12 @@ import {
   createSuccessResponse,
 } from "../services/response/apiResponse";
 import { HttpError } from "../utils/HttpError";
+import {
+  httpRequestDuration,
+  httpRequestTotal,
+  fileUploadSize,
+  activeConnections
+} from "./metrics";
 
 interface PutObjectQuery {
   bucket: string;
@@ -42,6 +48,10 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     Params: PutObjectParams;
     Querystring: PutObjectQuery;
   }>("/:bucket/*", async function (request, reply) {
+    const startTime = Date.now();
+    activeConnections.inc();
+    let statusCode = 200;
+    
     try {
       const { bucket, objectKey, method, exp, signature } = request.query;
 
@@ -67,10 +77,18 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
 
       // 9. 파일 스트림 반환
       fastify.log.info({ bucket, objectKey, contentType }, "File download started");
-      return reply.send(fileStream);
+      
+      // 파일 크기 메트릭 (실제 파일 크기는 스트림에서 추출 필요)
+      // 여기서는 간단히 스트림을 보내고, 나중에 개선 가능
+      const response = reply.send(fileStream);
+      
+      // 메트릭 기록
+      statusCode = reply.statusCode;
+      return response;
     } catch (error) {
       // HttpError는 상태 코드와 메시지를 포함
       if (error instanceof HttpError) {
+        statusCode = error.statusCode;
         fastify.log.warn({ error: error.message, statusCode: error.statusCode }, "Validation failed");
         return sendErrorResponse(
           reply,
@@ -81,6 +99,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       }
       
       // 기타 예상치 못한 에러
+      statusCode = 500;
       fastify.log.error({ error }, "File download error");
       return sendErrorResponse(
         reply,
@@ -88,6 +107,17 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         "파일 다운로드 중 오류가 발생했습니다",
         { error: error instanceof Error ? error.message : "알 수 없는 오류" },
       );
+    } finally {
+      // 메트릭 기록
+      const duration = (Date.now() - startTime) / 1000;
+      httpRequestDuration.observe(
+        { method: 'GET', route: '/objects/:bucket/*', status_code: statusCode.toString() },
+        duration
+      );
+      httpRequestTotal.inc(
+        { method: 'GET', route: '/objects/:bucket/*', status_code: statusCode.toString() }
+      );
+      activeConnections.dec();
     }
   });
 
@@ -100,6 +130,9 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     Params: PutObjectParams;
     Querystring: PutObjectQuery;
   }>("/:bucket/*", async function (request, reply) {
+    const startTime = Date.now();
+    activeConnections.inc();
+    let statusCode = 201;
     let filePath: string | null = null;
     
     try {
@@ -146,6 +179,12 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         const responseData = {
           ...fileInfo
         };
+        
+        // 업로드 파일 크기 메트릭 기록
+        if (fileInfo.size) {
+          fileUploadSize.observe({ bucket }, fileInfo.size);
+        }
+        
         return reply.code(201).send(createSuccessResponse(responseData));
       } catch (dbError) {
         // DB 저장 실패 시 파일 삭제 (롤백)
@@ -158,6 +197,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     } catch (error) {
       // HttpError는 상태 코드와 메시지를 포함
       if (error instanceof HttpError) {
+        statusCode = error.statusCode;
         fastify.log.warn({ error: error.message, statusCode: error.statusCode }, "Validation failed");
         return sendErrorResponse(
           reply,
@@ -168,6 +208,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       }
       
       // 기타 예상치 못한 에러
+      statusCode = 500;
       fastify.log.error({ error }, "File upload error");
       return sendErrorResponse(
         reply,
@@ -175,6 +216,17 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         "파일 업로드 중 오류가 발생했습니다",
         { error: error instanceof Error ? error.message : "알 수 없는 오류" },
       );
+    } finally {
+      // 메트릭 기록
+      const duration = (Date.now() - startTime) / 1000;
+      httpRequestDuration.observe(
+        { method: 'PUT', route: '/objects/:bucket/*', status_code: statusCode.toString() },
+        duration
+      );
+      httpRequestTotal.inc(
+        { method: 'PUT', route: '/objects/:bucket/*', status_code: statusCode.toString() }
+      );
+      activeConnections.dec();
     }
   });
 };
