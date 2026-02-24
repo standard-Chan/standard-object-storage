@@ -68,5 +68,15 @@ dist
 uploads/*
 !uploads/.gitkeep
 
+# test files
+test/upload-test/test-files/
+test/upload-test/test-results/
+test/upload-test/*.json
+test/upload-test/k6-load-test.js
+test/upload-test/k6-read-test.js
+test/upload-test/generate-file-list.js
+
 # environment variables
 .env
+
+*.bin
