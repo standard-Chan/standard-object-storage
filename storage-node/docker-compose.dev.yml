@@ -22,7 +22,7 @@ services:
       # Presigned URL Secret
       - PRESIGNED_URL_SECRET_KEY=${PRESIGNED_URL_SECRET_KEY:-your-very-strong-secret-key}
     volumes:
-      - /storage:/app/uploads
+      - ~/s3-storage:/app/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
