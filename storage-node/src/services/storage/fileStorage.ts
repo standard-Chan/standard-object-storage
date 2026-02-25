@@ -1,6 +1,7 @@
 import path from 'path'
 import { promises as fsPromises } from 'fs'
 import fs from 'fs'
+import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import { MultipartFile } from '@fastify/multipart'
 import crypto from 'crypto'
@@ -89,6 +90,48 @@ export async function collectFileInfo(
 }
 
 /**
+ * Raw 스트림을 로컬 파일시스템에 저장 (복제 수신용)
+ */
+export async function saveStreamToStorage(
+  bucket: string,
+  objectKey: string,
+  stream: Readable
+): Promise<string> {
+  const filePath = path.join(process.cwd(), 'uploads', bucket, objectKey)
+  const fileDir = path.dirname(filePath)
+
+  await fsPromises.mkdir(fileDir, { recursive: true })
+  await pipeline(stream, fs.createWriteStream(filePath))
+
+  return filePath
+}
+
+/**
+ * Raw 스트림으로 저장된 파일 정보 수집 (복제 수신용)
+ */
+export async function collectStreamFileInfo(
+  bucket: string,
+  objectKey: string,
+  filePath: string,
+  mimetype: string
+): Promise<FileInfo> {
+  const fileStats = await fsPromises.stat(filePath)
+  const etag = await generateETag(filePath)
+
+  return {
+    bucket,
+    objectKey,
+    filename: path.basename(objectKey),
+    mimetype,
+    encoding: 'binary',
+    size: fileStats.size,
+    uploadedAt: new Date().toISOString(),
+    storagePath: filePath,
+    etag,
+  }
+}
+
+/**
  * 파일의 SHA-256 해시를 생성하여 ETag로 사용
  */
 export async function generateETag(filePath: string): Promise<string> {
@@ -132,106 +175,4 @@ export function getFileStream(bucket: string, objectKey: string): fs.ReadStream 
   }
   
   return fs.createReadStream(filePath)
-}
-
-/**
- * 객체가 이미 존재하는지 확인
- */
-export async function checkObjectExists(
-  mysql: any,
-  bucketId: number,
-  objectKey: string,
-  bucket: string
-): Promise<void> {
-  const connection = await mysql.getConnection()
-  try {
-    const [rows] = await connection.query(
-      'SELECT COUNT(*) as count FROM tb_objects WHERE bucket_id = ? AND object_key = ? LIMIT 1',
-      [bucketId, objectKey]
-    )
-    if (rows[0].count > 0) {
-      throw new HttpError(
-        409,
-        `이미 존재하는 객체입니다: ${bucket}/${objectKey}`
-      )
-    }
-  } finally {
-    connection.release()
-  }
-}
-
-/**
- * Bucket 이름으로 Bucket ID 조회
- */
-export async function getBucketIdByName(
-  mysql: any,
-  bucketName: string
-): Promise<number> {
-  const connection = await mysql.getConnection()
-  try {
-    const [rows] = await connection.query(
-      'SELECT id FROM tb_buckets WHERE name = ? LIMIT 1',
-      [bucketName]
-    )
-    
-    if (!rows || rows.length === 0) {
-      throw new HttpError(
-        404,
-        `버킷을 찾을 수 없습니다: ${bucketName}`
-      )
-    }
-    return rows[0].id
-  } finally {
-    connection.release()
-  }
-}
-
-/**
- * MySQL에 StoredObject 메타데이터 저장
- * 
- * @param mysql - MySQL 연결 객체
- * @param bucketId - Bucket ID
- * @param fileInfo - 파일 정보
- * @returns 생성된 StoredObject의 UUID
- */
-export async function saveMetadataToDatabase(
-  mysql: any,
-  bucketId: number,
-  fileInfo: FileInfo
-): Promise<string> {
-  const connection = await mysql.getConnection()
-  try {
-    // UUID 생성
-    const objectId = crypto.randomUUID()
-    const now = new Date()
-
-    // TB_OBJECTS에 데이터 삽입
-    await connection.query(
-      `INSERT INTO tb_objects
-        (id, bucket_id, object_key, storage_path, size, etag, status, created_at, updated_at) 
-       VALUES 
-        (UNHEX(REPLACE(?, '-', '')), ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        objectId,
-        bucketId,
-        fileInfo.objectKey,
-        fileInfo.storagePath,
-        fileInfo.size,
-        fileInfo.etag,
-        ObjectStatus.COMPLETE,
-        now,
-        now
-      ]
-    )
-
-    return objectId
-  } catch (error: any) {
-    // 중복 키 에러 처리
-    if (error.code === 'ER_DUP_ENTRY') {
-      throw new Error(`이미 존재하는 객체입니다: ${fileInfo.bucket}/${fileInfo.objectKey}`)
-    }
-    throw error
-  } finally {
-    connection.release()
-  }
 }

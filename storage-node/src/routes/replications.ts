@@ -1,8 +1,8 @@
 import { FastifyPluginAsync } from "fastify";
+import { Readable } from "stream";
 import {
-  validateFileData,
-  saveFileToStorage,
-  collectFileInfo,
+  saveStreamToStorage,
+  collectStreamFileInfo,
 } from "../services/storage/fileStorage";
 import {
   sendErrorResponse,
@@ -20,11 +20,19 @@ interface ReplicateQuery {
 }
 
 const replications: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
+  // multipart 파서가 처리하지 않는 Content-Type(raw binary 등)을 스트림으로 그대로 통과
+  fastify.addContentTypeParser(
+    "*",
+    function (_request, payload, done) {
+      done(null, payload);
+    },
+  );
+
   /**
-   * PUT /replicate
+   * PUT /internal/replications
    * - 내부 데이터 복제용 엔드포인트
    * - X-Replication-Request 헤더 검증
-   * - Primary에서 Secondary로 데이터 복제 시 사용
+   * - Primary에서 Secondary로 데이터 복제 시 사용 (raw stream 수신)
    */
   fastify.put<{
     Querystring: ReplicateQuery;
@@ -44,28 +52,27 @@ const replications: FastifyPluginAsync = async (fastify, opts): Promise<void> =>
         "Replication request received",
       );
 
-      // Multipart 파일 데이터 받기 및 검증
-      const fileData = await request.file();
-      validateFileData(fileData);
+      const bodyStream = request.body as Readable;
+      if (!bodyStream || typeof bodyStream.pipe !== "function") {
+        throw new HttpError(400, "파일 스트림이 전달되지 않았습니다");
+      }
 
-      // 파일 저장
-      filePath = await saveFileToStorage(bucket, objectKey, fileData!);
-      const fileInfo = await collectFileInfo(
+      const mimetype =
+        request.headers["content-type"] ?? "application/octet-stream";
+
+      // 스트림을 디스크에 저장
+      filePath = await saveStreamToStorage(bucket, objectKey, bodyStream);
+      const fileInfo = await collectStreamFileInfo(
         bucket,
         objectKey,
         filePath,
-        fileData!,
+        mimetype,
       );
 
       fastify.log.info({ fileInfo }, "파일 복제 완료");
 
-      const responseData = {
-        ...fileInfo,
-      };
-
-      return reply.code(200).send(createSuccessResponse(responseData));
+      return reply.code(200).send(createSuccessResponse(fileInfo));
     } catch (error) {
-      // HttpError는 상태 코드와 메시지를 포함
       if (error instanceof HttpError) {
         fastify.log.warn(
           { error: error.message, statusCode: error.statusCode },
@@ -79,7 +86,6 @@ const replications: FastifyPluginAsync = async (fastify, opts): Promise<void> =>
         );
       }
 
-      // 기타 예상치 못한 에러
       fastify.log.error({ error }, "Replication error");
       return sendErrorResponse(
         reply,
