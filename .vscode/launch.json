@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "storage-node: Debug",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-r", "ts-node/register"
+      ],
+      "args": ["${workspaceFolder}/storage-node/src/server.ts"],
+      "cwd": "${workspaceFolder}/storage-node",
+      "env": {
+        "NODE_ENV": "development",
+        "TS_NODE_PROJECT": "${workspaceFolder}/storage-node/tsconfig.json"
+      },
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/storage-node/dist/**/*.js"],
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/storage-node/src/**",
+        "!**/node_modules/**"
+      ],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    }
+  ]
+}
