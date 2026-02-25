@@ -3,8 +3,12 @@
 AWS S3 object storage를 직접 만드는 프로젝트입니다.
 
 ---
-## 프로토타입 아키텍처 구조도
-<img src="docs/imgs/프로토타입 아키텍처.png" width="1000" />
+
+## 아키텍처 구조
+<img src="docs/imgs/아키텍처 구조.png" width="1000" />
+
+### 설계 문서
+- [DISK 및 Node server 아키텍처 설계 과정](https://velog.io/@standard-chan/%EC%8A%A4%ED%86%A0%EB%A6%AC%EC%A7%80-%EC%84%A4%EA%B3%84-%EB%82%B4%EA%B5%AC%EC%84%B1-99.99..-%EC%95%84%ED%82%A4%ED%85%8D%EC%B2%98-%EC%84%A4%EA%B3%84)
 
 ---
 
