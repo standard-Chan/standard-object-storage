@@ -9,7 +9,6 @@ import {
   validateFileData,
   saveFileToStorage,
   collectFileInfo,
-  deleteFile,
   getFileStream,
   getContentTypeFromExtension,
 } from "../services/storage/fileStorage";
@@ -18,12 +17,6 @@ import {
   createSuccessResponse,
 } from "../services/response/apiResponse";
 import { HttpError } from "../utils/HttpError";
-import {
-  httpRequestDuration,
-  httpRequestTotal,
-  fileUploadSize,
-  activeConnections,
-} from "./metrics";
 
 interface PutObjectQuery {
   bucket: string;
@@ -47,7 +40,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
   fastify.get<{
     Params: PutObjectParams;
     Querystring: PutObjectQuery;
-  }>("/:bucket/*", async function (request, reply) {
+  }>("/objects/:bucket/*", async function (request, reply) {
     try {
       const { bucket, objectKey, method, exp, signature } = request.query;
 
