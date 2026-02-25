@@ -30,7 +30,6 @@ const replications: FastifyPluginAsync = async (fastify, opts): Promise<void> =>
     Querystring: ReplicateQuery;
   }>("/internal/replications", async function (request, reply) {
     let filePath: string | null = null;
-    console.log("@@@@@@@@@@@@@@@@@@@@@@22 put 실행")
 
     try {
       const replicationHeader = request.headers["x-replication-request"];
