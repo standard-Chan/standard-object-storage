@@ -22,7 +22,7 @@ services:
       # node_modules는 컨테이너 것 사용 (성능 향상)
       - /app/node_modules
       # uploads 디렉토리는 호스트와 공유
-      - ~/s3-storage:/app/uploads
+      - ./uploads:/app/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
