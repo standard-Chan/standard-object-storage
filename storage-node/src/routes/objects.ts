@@ -17,6 +17,7 @@ import {
   createSuccessResponse,
 } from "../services/response/apiResponse";
 import { HttpError } from "../utils/HttpError";
+import { replicateToSecondary } from "../services/replication/replicateToSecondary";
 
 interface PutObjectQuery {
   bucket: string;
@@ -121,6 +122,9 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         fileData!,
       );
       fastify.log.info({ fileInfo }, "파일 업로드 성공");
+
+      await replicateToSecondary(bucket, objectKey);
+      fastify.log.info({ bucket, objectKey }, "Secondary 복제 완료");
 
       // TODO: MySQL에 메타데이터 저장
 
