@@ -11,14 +11,6 @@ services:
     env_file:
       - .env
     environment:
-      # MySQL Plugin Enable/Disable
-      - ENABLE_MYSQL=${ENABLE_MYSQL:-false}
-      # MySQL Configuration (외부 MySQL 사용 - host.docker.internal로 호스트 접근)
-      - MYSQL_HOST=${MYSQL_HOST:-host.docker.internal}
-      - MYSQL_PORT=${MYSQL_PORT:-3306}
-      - MYSQL_USER=${MYSQL_USER:-jeong}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-1234}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-s3_objects}
       # Presigned URL Secret
       - PRESIGNED_URL_SECRET_KEY=${PRESIGNED_URL_SECRET_KEY:-your-very-strong-secret-key}
     volumes:

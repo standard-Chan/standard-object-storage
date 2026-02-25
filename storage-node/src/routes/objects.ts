@@ -22,7 +22,7 @@ import {
   httpRequestDuration,
   httpRequestTotal,
   fileUploadSize,
-  activeConnections
+  activeConnections,
 } from "./metrics";
 
 interface PutObjectQuery {
@@ -48,10 +48,6 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     Params: PutObjectParams;
     Querystring: PutObjectQuery;
   }>("/:bucket/*", async function (request, reply) {
-    const startTime = Date.now();
-    activeConnections.inc();
-    let statusCode = 200;
-    
     try {
       const { bucket, objectKey, method, exp, signature } = request.query;
 
@@ -60,36 +56,25 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       validateMethod(method, "GET");
       validateRequestSignature(method, bucket, objectKey, exp, signature);
 
-      // 5. Bucket 존재 확인 및 ID 조회
-      // TODO: DB에서 버킷 존재 여부 확인
-      // const bucketId = await getBucketIdByName(fastify.mysql, bucket);
-
-      // 6. 객체 존재 확인
-      // TODO: DB에서 객체 메타데이터 조회
-      // const objectMetadata = await getObjectMetadata(fastify.mysql, bucketId, objectKey);
-
-      // 7. 파일 스트림 생성
       const fileStream = getFileStream(bucket, objectKey);
-
-      // 8. Content-Type 설정
       const contentType = getContentTypeFromExtension(objectKey);
-      reply.header('Content-Type', contentType);
+      reply.header("Content-Type", contentType);
 
-      // 9. 파일 스트림 반환
-      fastify.log.info({ bucket, objectKey, contentType }, "File download started");
-      
-      // 파일 크기 메트릭 (실제 파일 크기는 스트림에서 추출 필요)
-      // 여기서는 간단히 스트림을 보내고, 나중에 개선 가능
+      fastify.log.info(
+        { bucket, objectKey, contentType },
+        "File download started",
+      );
+
       const response = reply.send(fileStream);
-      
-      // 메트릭 기록
-      statusCode = reply.statusCode;
+
       return response;
     } catch (error) {
       // HttpError는 상태 코드와 메시지를 포함
       if (error instanceof HttpError) {
-        statusCode = error.statusCode;
-        fastify.log.warn({ error: error.message, statusCode: error.statusCode }, "Validation failed");
+        fastify.log.warn(
+          { error: error.message, statusCode: error.statusCode },
+          "Validation failed",
+        );
         return sendErrorResponse(
           reply,
           error.statusCode,
@@ -97,9 +82,8 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
           error.data,
         );
       }
-      
+
       // 기타 예상치 못한 에러
-      statusCode = 500;
       fastify.log.error({ error }, "File download error");
       return sendErrorResponse(
         reply,
@@ -107,17 +91,6 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         "파일 다운로드 중 오류가 발생했습니다",
         { error: error instanceof Error ? error.message : "알 수 없는 오류" },
       );
-    } finally {
-      // 메트릭 기록
-      const duration = (Date.now() - startTime) / 1000;
-      httpRequestDuration.observe(
-        { method: 'GET', route: '/objects/:bucket/*', status_code: statusCode.toString() },
-        duration
-      );
-      httpRequestTotal.inc(
-        { method: 'GET', route: '/objects/:bucket/*', status_code: statusCode.toString() }
-      );
-      activeConnections.dec();
     }
   });
 
@@ -130,11 +103,8 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     Params: PutObjectParams;
     Querystring: PutObjectQuery;
   }>("/:bucket/*", async function (request, reply) {
-    const startTime = Date.now();
-    activeConnections.inc();
-    let statusCode = 201;
     let filePath: string | null = null;
-    
+
     try {
       const { bucket, objectKey, method, exp, signature } = request.query;
 
@@ -143,62 +113,36 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       validateExpiration(exp);
       validateMethod(method, "PUT");
       validateRequestSignature(method, bucket, objectKey, exp, signature);
-
-      // 로그: PUT 요청 objectKey
-      fastify.log.info({ objectKey }, "PUT request received");
-
-      // // 5. Bucket 존재 확인 및 ID 조회
-      // const bucketId = await getBucketIdByName(fastify.mysql, bucket);
-
-      // // 6. 객체 중복 확인
-      // await checkObjectExists(fastify.mysql, bucketId, objectKey, bucket);
-
-      // 7. Multipart 파일 데이터 받기 및 검증
+      // Multipart 파일 데이터 받기 및 검증
       const fileData = await request.file();
       validateFileData(fileData);
 
-      // 8. 파일 저장
-      try {
-        filePath = await saveFileToStorage(bucket, objectKey, fileData!);
+      fastify.log.info({ objectKey }, "PUT request received");
 
-        // 9. 파일 정보 수집
-        const fileInfo = await collectFileInfo(bucket, objectKey, filePath, fileData!);
+      // 파일 저장
+      filePath = await saveFileToStorage(bucket, objectKey, fileData!);
+      const fileInfo = await collectFileInfo(
+        bucket,
+        objectKey,
+        filePath,
+        fileData!,
+      );
+      fastify.log.info({ fileInfo }, "파일 업로드 성공");
 
-        // // 10. MySQL에 메타데이터 저장
-        // const objectId = await saveMetadataToDatabase(fastify.mysql, bucketId, fileInfo);
+      // TODO: MySQL에 메타데이터 저장
 
-        // // 11. 로그 기록
-        // fastify.log.info({ objectId, fileInfo }, "파일 업로드 성공");
+      const responseData = {
+        ...fileInfo,
+      };
 
-        // 12. 성공 응답 전송
-        // const responseData = {
-        //   objectId,
-        //   ...fileInfo
-        // };
-
-        const responseData = {
-          ...fileInfo
-        };
-        
-        // 업로드 파일 크기 메트릭 기록
-        if (fileInfo.size) {
-          fileUploadSize.observe({ bucket }, fileInfo.size);
-        }
-        
-        return reply.code(201).send(createSuccessResponse(responseData));
-      } catch (dbError) {
-        // DB 저장 실패 시 파일 삭제 (롤백)
-        if (filePath) {
-          await deleteFile(filePath);
-          fastify.log.warn({ filePath }, "File deleted due to DB save failure");
-        }
-        throw dbError;
-      }
+      return reply.code(201).send(createSuccessResponse(responseData));
     } catch (error) {
       // HttpError는 상태 코드와 메시지를 포함
       if (error instanceof HttpError) {
-        statusCode = error.statusCode;
-        fastify.log.warn({ error: error.message, statusCode: error.statusCode }, "Validation failed");
+        fastify.log.warn(
+          { error: error.message, statusCode: error.statusCode },
+          "Validation failed",
+        );
         return sendErrorResponse(
           reply,
           error.statusCode,
@@ -206,9 +150,8 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
           error.data,
         );
       }
-      
+
       // 기타 예상치 못한 에러
-      statusCode = 500;
       fastify.log.error({ error }, "File upload error");
       return sendErrorResponse(
         reply,
@@ -216,17 +159,6 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         "파일 업로드 중 오류가 발생했습니다",
         { error: error instanceof Error ? error.message : "알 수 없는 오류" },
       );
-    } finally {
-      // 메트릭 기록
-      const duration = (Date.now() - startTime) / 1000;
-      httpRequestDuration.observe(
-        { method: 'PUT', route: '/objects/:bucket/*', status_code: statusCode.toString() },
-        duration
-      );
-      httpRequestTotal.inc(
-        { method: 'PUT', route: '/objects/:bucket/*', status_code: statusCode.toString() }
-      );
-      activeConnections.dec();
     }
   });
 };
