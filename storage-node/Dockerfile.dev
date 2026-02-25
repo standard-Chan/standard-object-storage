@@ -1,0 +1,33 @@
+# Development Dockerfile with hot-reload support
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies for better file watching on Linux
+RUN apk add --no-cache tini
+
+# Copy package files first for better caching
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm ci
+
+# Copy source code (will be overridden by volume mount in dev)
+COPY src ./src
+
+# Create uploads directory
+RUN mkdir -p uploads && \
+    chown -R node:node /app
+
+# Switch to non-root user
+USER node
+
+# Expose port
+EXPOSE 3000
+
+# Use tini to handle signals properly
+ENTRYPOINT ["/sbin/tini", "--"]
+
+# Start with nodemon for hot-reload
+CMD ["npm", "run", "dev:nodemon"]
