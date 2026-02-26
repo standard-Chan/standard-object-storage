@@ -1,4 +1,5 @@
 import { MultipartFile } from "@fastify/multipart";
+import { FastifyBaseLogger } from "fastify";
 import { validatePresignedUrlRequest } from "../validation/presignedUrl";
 import {
   validateFileData,
@@ -30,12 +31,19 @@ export interface DownloadResult {
  */
 export async function downloadObject(
   query: PresignedQuery,
+  log: FastifyBaseLogger,
 ): Promise<DownloadResult> {
-  validatePresignedUrlRequest(query, "GET");
-
   const { bucket, objectKey } = query;
+  log.info({ objectKey }, "GET request received");
+
+  validatePresignedUrlRequest(query, "GET");
   const fileStream = getFileStream(bucket, objectKey);
   const contentType = getContentTypeFromExtension(objectKey);
+
+  log.info(
+    { bucket, objectKey, contentType },
+    "GET 처리 완료 - download할 수 있습니다",
+  );
 
   return { fileStream, contentType };
 }
@@ -48,16 +56,25 @@ export async function downloadObject(
 export async function uploadObject(
   query: PresignedQuery,
   fileData: MultipartFile | undefined,
+  log: FastifyBaseLogger,
 ): Promise<FileInfo> {
+  const { bucket, objectKey } = query;
+  log.info({ objectKey }, "PUT request received");
+
   validatePresignedUrlRequest(query, "PUT");
   validateFileData(fileData);
-  
-  const { bucket, objectKey } = query;
 
   const filePath = await saveFileToStorage(bucket, objectKey, fileData!);
-  const fileInfo = await collectFileInfo(bucket, objectKey, filePath, fileData!);
+  const fileInfo = await collectFileInfo(
+    bucket,
+    objectKey,
+    filePath,
+    fileData!,
+  );
+  log.info({ fileInfo }, "파일 업로드 성공");
 
-  await replicateToSecondary(bucket, objectKey);
+  await replicateToSecondary(bucket, objectKey, log);
+  log.info({ bucket, objectKey }, "Secondary-Node 복제 완료");
 
   return fileInfo;
 }

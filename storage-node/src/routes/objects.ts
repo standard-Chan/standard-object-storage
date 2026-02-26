@@ -27,10 +27,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     Querystring: ObjectQuery;
   }>("/objects/:bucket/*", async function (request, reply) {
     try {
-      const { bucket, objectKey } = request.query;
-      const { fileStream, contentType } = await downloadObject(request.query);
-
-      fastify.log.info({ bucket, objectKey, contentType }, "File download started");
+      const { fileStream, contentType } = await downloadObject(request.query, request.log);
 
       reply.header("Content-Type", contentType);
       return reply.send(fileStream);
@@ -56,15 +53,9 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     Querystring: ObjectQuery;
   }>("/:bucket/*", async function (request, reply) {
     try {
-      const { bucket, objectKey } = request.query;
-      fastify.log.info({ objectKey }, "PUT request received");
-
       // TODO: MySQL에 메타데이터 저장
       const fileData = await request.file();
-      const fileInfo = await uploadObject(request.query, fileData);
-
-      fastify.log.info({ fileInfo }, "파일 업로드 성공");
-      fastify.log.info({ bucket, objectKey }, "Secondary 복제 완료");
+      const fileInfo = await uploadObject(request.query, fileData, request.log);
 
       return reply.code(201).send(createSuccessResponse(fileInfo));
     } catch (error) {

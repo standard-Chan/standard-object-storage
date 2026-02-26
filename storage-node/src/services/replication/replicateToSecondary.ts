@@ -1,4 +1,5 @@
 import { HttpError } from "../../utils/HttpError";
+import { FastifyBaseLogger } from "fastify";
 import {
   getContentTypeFromExtension,
   getFileStream,
@@ -32,6 +33,7 @@ function getTimeoutMs(): number {
 export async function replicateToSecondary(
   bucket: string,
   objectKey: string,
+  log: FastifyBaseLogger,
 ): Promise<void> {
   const secondaryNodeIp = process.env.SECONDARY_NODE_IP;
   if (!secondaryNodeIp) {
@@ -65,6 +67,7 @@ export async function replicateToSecondary(
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
+      log.error({ bucket, objectKey, status: response.status, body }, "Secondary 복제 실패");
       throw new HttpError(
         500,
         `Secondary 복제 실패 (HTTP ${response.status})`,
@@ -75,12 +78,14 @@ export async function replicateToSecondary(
     if (error instanceof HttpError) throw error;
 
     if ((error as { name?: string })?.name === "AbortError") {
+      log.error({ bucket, objectKey }, `Secondary 복제 타임아웃 (${getTimeoutMs()}ms 초과)`);
       throw new HttpError(
         500,
         `Secondary 복제 타임아웃 (${getTimeoutMs()}ms 초과)`,
       );
     }
 
+    log.error({ error, bucket, objectKey }, "Secondary 복제 중 오류가 발생했습니다");
     throw new HttpError(500, "Secondary 복제 중 오류가 발생했습니다", {
       error: error instanceof Error ? error.message : "알 수 없는 오류",
     });
