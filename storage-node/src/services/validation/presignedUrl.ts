@@ -77,3 +77,24 @@ export function validateRequestSignature(
     throw new HttpError(403, "서명이 유효하지 않습니다");
   }
 }
+
+/**
+ * Presigned URL 요청 통합 검증
+ * - 필수 파라미터, 만료 시간, 메서드, 서명을 한 번에 검증
+ */
+export function validatePresignedUrlRequest(
+  query: {
+    bucket: string;
+    objectKey: string;
+    method: string;
+    exp: string;
+    signature: string;
+  },
+  expectedMethod: "GET" | "PUT",
+): void {
+  const { bucket, objectKey, method, exp, signature } = query;
+  validateRequiredParams(bucket, objectKey, method, exp, signature);
+  validateExpiration(exp);
+  validateMethod(method, expectedMethod);
+  validateRequestSignature(method, bucket, objectKey, exp, signature);
+}
