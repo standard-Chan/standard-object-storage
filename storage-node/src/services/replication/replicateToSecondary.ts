@@ -76,14 +76,16 @@ export async function replicateToSecondary(
 
     if ((error as { name?: string })?.name === "AbortError") {
       log.error({ bucket, objectKey }, `Secondary 복제 타임아웃 (${getTimeoutMs()}ms 초과)`);
+      // 504 Gateway Timeout: 우리 쪽 AbortController가 중단한 경우
       throw new HttpError(
-        500,
+        504,
         `Secondary 복제 타임아웃 (${getTimeoutMs()}ms 초과)`,
       );
     }
 
-    log.error({ error, bucket, objectKey }, "Secondary 복제 중 오류가 발생했습니다");
-    throw new HttpError(500, "Secondary 복제 중 오류가 발생했습니다", {
+    log.error({ error, bucket, objectKey }, "Secondary 복제 중 네트워크 오류가 발생했습니다");
+    // 502 Bad Gateway: fetch 자체가 실패한 경우 (연결 거부, DNS 실패 등)
+    throw new HttpError(502, "Secondary 복제 중 네트워크 오류가 발생했습니다", {
       error: error instanceof Error ? error.message : "알 수 없는 오류",
     });
   } finally {

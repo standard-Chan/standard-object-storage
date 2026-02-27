@@ -27,11 +27,11 @@ async function runOnePoll(
 
     try {
       await replicateToSecondary(bucket, objectKey, log);
-    } catch (replicationError) {
-      const errorType = classifyReplicationError(replicationError);
+    } catch (err) {
+      const errorType = classifyReplicationError(err);
       const errorMessage =
-        replicationError instanceof Error
-          ? replicationError.message
+        err instanceof Error
+          ? err.message
           : "알 수 없는 오류";
 
       replicationQueue.updateOnRetryFailure(
