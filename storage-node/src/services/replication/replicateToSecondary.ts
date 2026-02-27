@@ -66,7 +66,7 @@ export async function replicateToSecondary(
       const body = await response.text().catch(() => "");
       log.error({ bucket, objectKey, status: response.status, body }, "Secondary 복제 실패");
       throw new HttpError(
-        500,
+        response.status,
         `Secondary 복제 실패 (HTTP ${response.status})`,
         { body },
       );
