@@ -1,6 +1,6 @@
 import { MySQLPromisePool } from "@fastify/mysql";
 import type { Database } from "better-sqlite3";
-import type { ReplicationQueueRepository } from "../db/replicationQueue";
+import type { ReplicationQueueRepository } from "../repository/replicationQueue";
 
 declare module "fastify" {
   interface FastifyInstance {

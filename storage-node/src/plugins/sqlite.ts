@@ -5,7 +5,7 @@ import { CREATE_REPLICATION_QUEUE_TABLE } from "../db/schema";
 import {
   createReplicationQueueRepository,
   ReplicationQueueRepository,
-} from "../db/replicationQueue";
+} from "../repository/replicationQueue";
 
 const DB_PATH = process.env.SQLITE_DB_PATH ?? "./uploads/replication.db";
 const BUSY_TIMEOUT_MS = 5_000;
