@@ -5,6 +5,7 @@ export type ReplicationStatus = "RETRYABLE" | "FAILED_PERM";
 export type ErrorType = "HTTP_NON_2XX" | "TIMEOUT" | "NETWORK" | "UNKNOWN";
 
 const MAX_RETRY = 10;
+const MAX_WAIT_TIME = 3_600_000;
 const RETRY_INTERVAL_MS = 10_000;
 
 export interface ReplicationQueueRow {
@@ -59,8 +60,12 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function nextRetryIso(): string {
-  return new Date(Date.now() + RETRY_INTERVAL_MS).toISOString();
+/**
+ * 대기시간 설정 : retryCount 번째 재시도까지 지수적으로 증가 후 최대 1시간으로 설정
+ */
+function calcNextRetryTime(retryCount: number): string {
+  const delayMs = Math.min(RETRY_INTERVAL_MS * Math.pow(2, retryCount), MAX_WAIT_TIME);
+  return new Date(Date.now() + delayMs).toISOString();
 }
 
 // ---------- factory ----------
@@ -86,6 +91,11 @@ export function createReplicationQueueRepository(
                          END,
       lastErrorType    = @errorType,
       lastErrorMessage = @errorMessage
+  `);
+
+  const getRetryCountStmt = db.prepare(`
+    SELECT retryCount FROM replication_queue
+    WHERE bucket = @bucket AND objectKey = @objectKey
   `);
 
   const fetchBatchStmt = db.prepare(`
@@ -120,11 +130,16 @@ export function createReplicationQueueRepository(
 
   return {
     upsertOnFailure(bucket, objectKey, errorType, errorMessage) {
+      // 기존 row가 있으면 retryCount+1 회차, 없으면 0 회차(첫 실패)
+      const existing = getRetryCountStmt.get({ bucket, objectKey }) as
+        | { retryCount: number }
+        | undefined;
+      const currentRetryCount = existing?.retryCount ?? -1;
       upsertStmt.run({
         bucket,
         objectKey,
         now: nowIso(),
-        nextRetryAt: nextRetryIso(),
+        nextRetryAt: calcNextRetryTime(currentRetryCount + 1),
         errorType,
         errorMessage,
       });
@@ -142,11 +157,15 @@ export function createReplicationQueueRepository(
     },
 
     updateOnRetryFailure(bucket, objectKey, errorType, errorMessage) {
+      const existing = getRetryCountStmt.get({ bucket, objectKey }) as
+        | { retryCount: number }
+        | undefined;
+      const currentRetryCount = existing?.retryCount ?? 0;
       updateOnRetryFailureStmt.run({
         bucket,
         objectKey,
         now: nowIso(),
-        nextRetryAt: nextRetryIso(),
+        nextRetryAt: calcNextRetryTime(currentRetryCount + 1),
         errorType,
         errorMessage,
       });

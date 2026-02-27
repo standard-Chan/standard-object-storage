@@ -6,23 +6,22 @@ import { classifyReplicationError } from "./classifyError";
 const POLL_INTERVAL_MS = 1_000;
 const BATCH_SIZE = 5;
 
-let timerId: ReturnType<typeof setInterval> | null = null;
+let intervalId: ReturnType<typeof setInterval> | null = null;
 
 /**
- * 단일 poll 실행.
- * inFlight 플래그로 중복 실행을 방지하고, 배치 내 항목을 순차 처리한다.
+ * 실패했던 데이터들을 가져와서, 재복제 요청을 보낸다
  */
 async function runOnePoll(
   replicationQueue: ReplicationQueueRepository,
   log: FastifyBaseLogger,
 ): Promise<void> {
-  const batch = replicationQueue.fetchRetryBatch(BATCH_SIZE);
+  const replicationObjects = replicationQueue.fetchRetryBatch(BATCH_SIZE);
 
-  if (batch.length === 0) return;
+  if (replicationObjects.length === 0) return;
 
-  log.debug({ count: batch.length }, "[retryWorker] 복제 재시도 시작");
+  log.debug({ count: replicationObjects.length }, "[retryWorker] 복제 재시도 시작");
 
-  for (const row of batch) {
+  for (const row of replicationObjects) {
     const { bucket, objectKey } = row;
 
     try {
@@ -71,23 +70,20 @@ export function startReplicationRetryWorker(
   replicationQueue: ReplicationQueueRepository,
   log: FastifyBaseLogger,
 ): void {
-  if (timerId !== null) {
-    log.warn("[retryWorker] 이미 실행 중입니다");
-    return;
-  }
+  if (intervalId !== null) return;
 
-  let inFlight = false;
+  let isWorking = false;
 
-  timerId = setInterval(async () => {
-    if (inFlight) return;
+  intervalId = setInterval(async () => {
+    if (isWorking) return;
+    isWorking = true;
 
-    inFlight = true;
     try {
       await runOnePoll(replicationQueue, log);
     } catch (error) {
       log.error({ error }, "[retryWorker] poll 중 예상치 못한 오류 발생");
     } finally {
-      inFlight = false;
+      isWorking = false;
     }
   }, POLL_INTERVAL_MS);
 
@@ -102,9 +98,9 @@ export function startReplicationRetryWorker(
  * 앱 종료(onClose) 훅에서 호출한다.
  */
 export function stopReplicationRetryWorker(log: FastifyBaseLogger): void {
-  if (timerId === null) return;
+  if (intervalId === null) return;
 
-  clearInterval(timerId);
-  timerId = null;
+  clearInterval(intervalId);
+  intervalId = null;
   log.info("[retryWorker] 중단");
 }

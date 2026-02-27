@@ -9,6 +9,7 @@ import {
 
 const DB_PATH = process.env.SQLITE_DB_PATH ?? "./uploads/replication.db";
 const BUSY_TIMEOUT_MS = 5_000;
+const DB_TABLE_INIT = process.env.DB_TABLE_INIT ?? false;
 
 const sqlitePlugin: FastifyPluginCallback = (fastify, _opts, done) => {
   let db: InstanceType<typeof Database>;
@@ -25,12 +26,13 @@ const sqlitePlugin: FastifyPluginCallback = (fastify, _opts, done) => {
     return;
   }
 
-  db.pragma("journal_mode = WAL");
+  db.pragma("journal_mode = DELETE");
   db.pragma("synchronous = FULL");
   db.pragma(`busy_timeout = ${BUSY_TIMEOUT_MS}`);
   db.pragma("temp_store = FILE");
 
-  db.exec(CREATE_REPLICATION_QUEUE_TABLE);
+  if (DB_TABLE_INIT) db.exec(CREATE_REPLICATION_QUEUE_TABLE);
+
   const replicationQueue: ReplicationQueueRepository =
     createReplicationQueueRepository(db);
 
