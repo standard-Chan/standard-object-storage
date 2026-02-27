@@ -1,28 +1,23 @@
-version: '3.8'
-
 services:
-  storage-node:
+  # --- 1. Primary Node (3000 포트 / ./uploads) ---
+  primary-node:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: storage-node-dev
+    container_name: storage-node-primary
     ports:
       - "3000:3000"
     env_file:
       - .env
     environment:
-      # Presigned URL Secret
       - PRESIGNED_URL_SECRET_KEY=${PRESIGNED_URL_SECRET_KEY:-your-very-strong-secret-key}
-      # 개발 환경 설정
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
+      - ROLE=primary
     volumes:
-      # 소스 코드 마운트 (핫 리로드를 위해)
       - .:/app
-      # node_modules는 컨테이너 것 사용 (성능 향상)
       - /app/node_modules
-      # uploads 디렉토리는 호스트와 공유
-      - ./uploads:/app/uploads
+      - ./uploads:/app/uploads # Primary 전용 경로
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
@@ -37,6 +32,40 @@ services:
       retries: 3
       start_period: 40s
 
+  # --- 2. Secondary Node (3001 포트 / ./uploads/secondary) ---
+  secondary-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: storage-node-secondary
+    ports:
+      - "3001:3000" # 호스트는 3001, 내부 앱은 3000 사용 시
+    env_file:
+      - .env
+    environment:
+      - PRESIGNED_URL_SECRET_KEY=${PRESIGNED_URL_SECRET_KEY:-your-very-strong-secret-key}
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - ROLE=secondary
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ./uploads/secondary:/app/uploads # Secondary 전용 경로
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+  # --- 모니터링 도구들 ---
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
