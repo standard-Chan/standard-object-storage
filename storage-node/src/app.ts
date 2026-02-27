@@ -32,15 +32,20 @@ const app: FastifyPluginAsync<AppOptions> = async (
     options: opts,
   });
 
-  fastify.addHook("onReady", function (done) {
-    startReplicationRetryWorker(fastify.replicationQueue, fastify.log);
-    done();
-  });
+  // Primary 노드만 replication retry worker 실행
+  if (process.env.ROLE === "primary") {
+    fastify.addHook("onReady", function (done) {
+      startReplicationRetryWorker(fastify.replicationQueue, fastify.log);
+      done();
+    });
 
-  fastify.addHook("onClose", function (_instance, done) {
-    stopReplicationRetryWorker(fastify.log);
-    done();
-  });
+    fastify.addHook("onClose", function (_instance, done) {
+      stopReplicationRetryWorker(fastify.log);
+      done();
+    });
+  } else {
+    fastify.log.info(`[retryWorker] ROLE=${process.env.ROLE ?? "(unset)"} - worker 비활성화`);
+  }
 };
 
 export default app;
