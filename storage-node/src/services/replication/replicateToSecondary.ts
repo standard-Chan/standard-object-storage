@@ -4,6 +4,7 @@ import {
   getContentTypeFromExtension,
   getFileStream,
 } from "../storage/fileStorage";
+import { validateSecondaryNodeIp } from "../validation/replication";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -12,9 +13,9 @@ const DEFAULT_TIMEOUT_MS = 10_000;
  * REPLICATION_TIMEOUT_MS 미설정 시 기본값 10,000ms 사용
  */
 function getTimeoutMs(): number {
-  const raw = process.env.REPLICATION_TIMEOUT_MS;
-  if (!raw) return DEFAULT_TIMEOUT_MS;
-  const parsed = parseInt(raw, 10);
+  const limitTime = process.env.REPLICATION_TIMEOUT_MS;
+  if (!limitTime) return DEFAULT_TIMEOUT_MS;
+  const parsed = parseInt(limitTime, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
 }
 
@@ -22,7 +23,6 @@ function getTimeoutMs(): number {
  * Secondary 노드에 파일 복제
  *
  * - SECONDARY_ENDPOINT 환경변수에 설정된 주소로 PUT /internal/replications 요청
- * - 원본 파일을 disk에서 읽어 multipart/form-data로 전송
  * - X-Replication-Request 헤더 포함
  * - REPLICATION_TIMEOUT_MS(기본 10초) 초과 시 AbortError → HttpError(500) 변환
  *
@@ -35,10 +35,7 @@ export async function replicateToSecondary(
   objectKey: string,
   log: FastifyBaseLogger,
 ): Promise<void> {
-  const secondaryNodeIp = process.env.SECONDARY_NODE_IP;
-  if (!secondaryNodeIp) {
-    throw new HttpError(500, "복제할 대상 IP 환경변수값이 설정되지 않았습니다");
-  }
+  const secondaryNodeIp = validateSecondaryNodeIp();
 
   const url =
     `${secondaryNodeIp}/internal/replications` +
