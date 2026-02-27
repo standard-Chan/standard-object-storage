@@ -77,7 +77,12 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     try {
       // TODO: MySQL에 메타데이터 저장
       const fileData = await request.file();
-      const fileInfo = await uploadObject(request.query, fileData, request.log);
+      const fileInfo = await uploadObject(
+        request.query,
+        fileData,
+        request.log,
+        fastify.replicationQueue,
+      );
 
       return reply.code(201).send(createSuccessResponse(fileInfo));
     } catch (error) {
