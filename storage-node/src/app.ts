@@ -2,6 +2,10 @@ import dotenv from "dotenv";
 import { join } from "node:path";
 import AutoLoad, { AutoloadPluginOptions } from "@fastify/autoload";
 import { FastifyPluginAsync, FastifyServerOptions } from "fastify";
+import {
+  startReplicationRetryWorker,
+  stopReplicationRetryWorker,
+} from "./services/replication/replicationRetryWorker";
 
 dotenv.config();
 export interface AppOptions
@@ -26,6 +30,16 @@ const app: FastifyPluginAsync<AppOptions> = async (
   void fastify.register(AutoLoad, {
     dir: join(__dirname, "routes"),
     options: opts,
+  });
+
+  fastify.addHook("onReady", function (done) {
+    startReplicationRetryWorker(fastify.replicationQueue, fastify.log);
+    done();
+  });
+
+  fastify.addHook("onClose", function (_instance, done) {
+    stopReplicationRetryWorker(fastify.log);
+    done();
   });
 };
 
