@@ -17,7 +17,7 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
-      - ./uploads:/app/uploads # Primary 전용 경로
+      - ./uploads/primary:/app/uploads # Primary 전용 경로
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
