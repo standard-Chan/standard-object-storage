@@ -11,7 +11,9 @@ dotenv.config();
 export interface AppOptions
   extends FastifyServerOptions, Partial<AutoloadPluginOptions> {}
 // CLI 명령어를 통해 --options 인자로 추가 옵션 전달하는 용도
-const options: AppOptions = {};
+const options: AppOptions = {
+  disableRequestLogging: true,
+};
 
 /**
  *  Fastify 앱의 메인 플러그인 함수
@@ -44,7 +46,9 @@ const app: FastifyPluginAsync<AppOptions> = async (
       done();
     });
   } else {
-    fastify.log.info(`[retryWorker] ROLE=${process.env.ROLE ?? "(unset)"} - worker 비활성화`);
+    fastify.log.info(
+      `[retryWorker] ROLE=${process.env.ROLE ?? "(unset)"} - worker 비활성화`,
+    );
   }
 };
 

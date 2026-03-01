@@ -3,7 +3,7 @@ import { ReplicationQueueRepository } from "../../repository/replicationQueue";
 import { replicateToSecondary } from "./replicateToSecondary";
 import { classifyReplicationError } from "./classifyError";
 
-const POLL_INTERVAL_MS = 1_000;
+const POLL_INTERVAL_MS = 15_000;
 const BATCH_SIZE = 5;
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -11,7 +11,7 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
 /**
  * 실패했던 데이터들을 가져와서, 재복제 요청을 보낸다
  */
-async function runOnePoll(
+async function retryFailedReplications(
   replicationQueue: ReplicationQueueRepository,
   log: FastifyBaseLogger,
 ): Promise<void> {
@@ -29,7 +29,7 @@ async function runOnePoll(
     } catch (err) {
       const errorType = classifyReplicationError(err);
       const errorMessage =
-        err instanceof Error
+      err instanceof Error
           ? err.message
           : "알 수 없는 오류";
 
@@ -79,7 +79,7 @@ export function startReplicationRetryWorker(
     isWorking = true;
 
     try {
-      await runOnePoll(replicationQueue, log);
+      await retryFailedReplications(replicationQueue, log);
     } catch (error) {
       log.error({ error }, "[retryWorker] poll 중 예상치 못한 오류 발생");
     } finally {
