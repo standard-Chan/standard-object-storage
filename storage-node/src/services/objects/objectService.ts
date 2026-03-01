@@ -39,13 +39,16 @@ export async function downloadObject(
   log.info({ objectKey }, "GET request received");
 
   validatePresignedUrlRequest(query, "GET");
+
+  const startTime = performance.now();
   const fileStream = getFileStream(bucket, objectKey);
-  const contentType = getContentTypeFromExtension(objectKey);
+  const elapsedMs = (performance.now() - startTime).toFixed(3);
 
   log.info(
-    { bucket, objectKey, contentType },
-    "GET 처리 완료 - download할 수 있습니다",
+    { bucket, objectKey, elapsedMs: `${elapsedMs}ms` },
+    "읽기 처리 소요 시간 (DISK)",
   );
+  const contentType = getContentTypeFromExtension(objectKey);
 
   return { fileStream, contentType };
 }
@@ -90,7 +93,12 @@ export async function uploadObject(
       "Secondary 복제 실패 - replication_queue에 등록",
     );
 
-    replicationQueue.upsertOnFailure(bucket, objectKey, errorType, errorMessage);
+    replicationQueue.upsertOnFailure(
+      bucket,
+      objectKey,
+      errorType,
+      errorMessage,
+    );
   }
 
   return fileInfo;

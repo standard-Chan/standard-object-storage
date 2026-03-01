@@ -8,6 +8,22 @@ import crypto from 'crypto'
 import { HttpError } from '../../utils/HttpError'
 import { CONTENT_TYPE_MAP, DEFAULT_CONTENT_TYPE } from '../../constants/contentTypes'
 
+/* 현재 진행 중인 DISK 쓰기 작업 수 (pipeline 단위)*/
+let _activeDiskWrites = 0
+
+/* 현재 활성 DISK 쓰기 작업 수 반환 (외부 읽기용)*/
+export function getActiveDiskWrites(): number {
+  return _activeDiskWrites
+}
+
+/* 현재 진행 중인 DISK 읽기 스트림 수 */
+let _activeDiskReads = 0
+
+/* 현재 활성 DISK 읽기 스트림 수 반환 (외부 읽기용) */
+export function getActiveDiskReads(): number {
+  return _activeDiskReads
+}
+
 /**
  * 객체 상태 enum
  */
@@ -59,7 +75,10 @@ export async function saveFileToStorage(
   await fsPromises.mkdir(fileDir, { recursive: true })
 
   // 파일 저장
-  await pipeline(fileData.file, fs.createWriteStream(filePath))
+  const writeStream = fs.createWriteStream(filePath)
+  writeStream.once('close', () => { _activeDiskWrites-- })
+  _activeDiskWrites++
+  await pipeline(fileData.file, writeStream)
 
   return filePath
 }
@@ -101,7 +120,11 @@ export async function saveStreamToStorage(
   const fileDir = path.dirname(filePath)
 
   await fsPromises.mkdir(fileDir, { recursive: true })
-  await pipeline(stream, fs.createWriteStream(filePath))
+
+  const writeStream = fs.createWriteStream(filePath)
+  writeStream.once('close', () => { _activeDiskWrites-- })
+  _activeDiskWrites++
+  await pipeline(stream, writeStream)
 
   return filePath
 }
@@ -173,6 +196,10 @@ export function getFileStream(bucket: string, objectKey: string): fs.ReadStream 
       `파일을 찾을 수 없습니다: ${bucket}/${objectKey}`
     )
   }
-  
-  return fs.createReadStream(filePath)
+
+  const stream = fs.createReadStream(filePath)
+  stream.once('close', () => { _activeDiskReads-- })
+  _activeDiskReads++
+
+  return stream
 }

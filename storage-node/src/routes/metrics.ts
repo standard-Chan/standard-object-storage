@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify'
 import client from 'prom-client'
+import { getActiveDiskReads, getActiveDiskWrites } from '../services/storage/fileStorage'
 
 // 글로벌 레지스트리 생성
 const register = new client.Registry()
@@ -53,6 +54,11 @@ export const storageUsed = new client.Gauge({
   help: 'Used storage in bytes'
 })
 
+export const activeDiskWriteOps = new client.Gauge({
+  name: 'storage_node_active_disk_write_ops',
+  help: 'Number of currently active disk write (pipeline) operations'
+})
+
 // 레지스트리에 커스텀 메트릭 등록
 register.registerMetric(httpRequestDuration)
 register.registerMetric(httpRequestTotal)
@@ -61,12 +67,25 @@ register.registerMetric(fileDownloadSize)
 register.registerMetric(activeConnections)
 register.registerMetric(storageCapacity)
 register.registerMetric(storageUsed)
+register.registerMetric(activeDiskWriteOps)
 
 const metricsRoute: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
-  // /metrics 엔드포인트
+  // /metrics 엔드포인트 (Prometheus scrape)
   fastify.get('/metrics', async (request, reply) => {
+    activeDiskWriteOps.set(getActiveDiskWrites())
     reply.header('Content-Type', register.contentType)
     return register.metrics()
+  })
+
+  // /metrics/disk 엔드포인트 (DISK 트래픽 현황 JSON)
+  fastify.get('/metrics/disk', async (request, reply) => {
+    const writeActive = getActiveDiskWrites();
+    const readActive = getActiveDiskReads();
+    return {
+      activeDiskWrites: writeActive,
+      activeDiskReads: readActive,
+      timestamp: new Date().toISOString()
+    }
   })
 }
 
