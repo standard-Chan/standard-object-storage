@@ -1,7 +1,7 @@
 import path from 'path'
 import { promises as fsPromises } from 'fs'
 import fs from 'fs'
-import { Readable } from 'stream'
+import { Readable, finished } from 'stream'
 import { pipeline } from 'stream/promises'
 import { MultipartFile } from '@fastify/multipart'
 import crypto from 'crypto'
@@ -198,8 +198,8 @@ export function getFileStream(bucket: string, objectKey: string): fs.ReadStream 
   }
 
   const stream = fs.createReadStream(filePath)
-  stream.once('close', () => { _activeDiskReads-- })
   _activeDiskReads++
+  finished(stream, () => { _activeDiskReads-- })
 
   return stream
 }
