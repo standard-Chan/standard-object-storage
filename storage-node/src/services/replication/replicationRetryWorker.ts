@@ -2,11 +2,76 @@ import { FastifyBaseLogger } from "fastify";
 import { ReplicationQueueRepository } from "../../repository/replicationQueue";
 import { replicateToSecondary } from "./replicateToSecondary";
 import { classifyReplicationError } from "./classifyError";
+import { validateSecondaryNodeIp } from "../validation/replication";
 
-const POLL_INTERVAL_MS = 15_000;
+const POLL_INTERVAL_MS = 10_000;
 const BATCH_SIZE = 5;
+const METRICS_DISK_TIMEOUT_MS = 3_000;
+const MAX_SECONDARY_DISK_WRITES = 5;
+const MAX_SECONDARY_DISK_READS = 10;
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
+
+interface DiskMetrics {
+  activeDiskWrites: number;
+  activeDiskReads: number;
+  timestamp: string;
+}
+
+/**
+ * Secondary 노드의 /metrics/disk 를 조회하여 현재 작업량이 여유 있는지 확인
+ * - activeDiskWrites < 5, activeDiskReads < 10 일 때만 true 반환
+ * - 요청 실패 / 타임아웃 / 환경변수 미설정 시 false 반환 (복제 스킵)
+ */
+async function isSecondaryNodeIdle(log: FastifyBaseLogger): Promise<boolean> {
+  const secondaryNodeIp = validateSecondaryNodeIp();
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    METRICS_DISK_TIMEOUT_MS,
+  );
+
+  try {
+    const response = await fetch(`${secondaryNodeIp}/metrics/disk`, {
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      log.warn(
+        { status: response.status },
+        "[retryWorker] metrics/disk 응답 실패 - 복제 스킵",
+      );
+      return false;
+    }
+
+    const metrics = (await response.json()) as DiskMetrics;
+    const isIdle =
+      metrics.activeDiskWrites < MAX_SECONDARY_DISK_WRITES &&
+      metrics.activeDiskReads < MAX_SECONDARY_DISK_READS;
+
+    if (!isIdle) {
+      log.debug(
+        {
+          activeDiskWrites: metrics.activeDiskWrites,
+          activeDiskReads: metrics.activeDiskReads,
+        },
+        "[retryWorker] Secondary 노드 작업량 초과 - 복제 스킵",
+      );
+    }
+
+    return isIdle;
+  } catch (err) {
+    if ((err as { name?: string })?.name === "AbortError") {
+      log.warn("[retryWorker] metrics/disk 요청 타임아웃 - 복제 스킵");
+    } else {
+      log.warn({ err }, "[retryWorker] metrics/disk 요청 실패 - 복제 스킵");
+    }
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 /**
  * 실패했던 데이터들을 가져와서, 재복제 요청을 보낸다
@@ -15,11 +80,18 @@ async function retryFailedReplications(
   replicationQueue: ReplicationQueueRepository,
   log: FastifyBaseLogger,
 ): Promise<void> {
+  // Secondary 노드의 현재 작업량을 확인하여 복제 가능 여부 판단
+  const idle = await isSecondaryNodeIdle(log);
+  if (!idle) return;
+
   const replicationObjects = replicationQueue.fetchRetryBatch(BATCH_SIZE);
 
   if (replicationObjects.length === 0) return;
 
-  log.debug({ count: replicationObjects.length }, "[retryWorker] 복제 재시도 시작");
+  log.debug(
+    { count: replicationObjects.length },
+    "[retryWorker] 복제 재시도 시작",
+  );
 
   for (const row of replicationObjects) {
     const { bucket, objectKey } = row;
@@ -29,9 +101,7 @@ async function retryFailedReplications(
     } catch (err) {
       const errorType = classifyReplicationError(err);
       const errorMessage =
-      err instanceof Error
-          ? err.message
-          : "알 수 없는 오류";
+        err instanceof Error ? err.message : "알 수 없는 오류";
 
       replicationQueue.updateOnRetryFailure(
         bucket,
