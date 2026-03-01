@@ -5,8 +5,15 @@ import {
   getFileStream,
 } from "../storage/fileStorage";
 import { validateSecondaryNodeIp } from "../validation/replication";
-
-const DEFAULT_TIMEOUT_MS = 10_000;
+import {
+  HTTP_STATUS_BAD_GATEWAY,
+  HTTP_STATUS_GATEWAY_TIMEOUT,
+} from "../../constants/httpStatus";
+import {
+  REPLICATION_DEFAULT_TIMEOUT_MS,
+  REPLICATION_ENDPOINT_PATH,
+  REPLICATION_REQUEST_HEADER,
+} from "../../constants/replication";
 
 /**
  * 환경변수에서 복제 타임아웃(ms)을 읽어 반환
@@ -14,9 +21,9 @@ const DEFAULT_TIMEOUT_MS = 10_000;
  */
 function getTimeoutMs(): number {
   const limitTime = process.env.REPLICATION_TIMEOUT_MS;
-  if (!limitTime) return DEFAULT_TIMEOUT_MS;
+  if (!limitTime) return REPLICATION_DEFAULT_TIMEOUT_MS;
   const parsed = parseInt(limitTime, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : REPLICATION_DEFAULT_TIMEOUT_MS;
 }
 
 /**
@@ -38,7 +45,7 @@ export async function replicateToSecondary(
   const secondaryNodeIp = validateSecondaryNodeIp();
 
   const url =
-    `${secondaryNodeIp}/internal/replications` +
+    `${secondaryNodeIp}${REPLICATION_ENDPOINT_PATH}` +
     `?bucket=${encodeURIComponent(bucket)}&objectKey=${encodeURIComponent(objectKey)}`;
 
   const fileStream = getFileStream(bucket, objectKey);
@@ -54,7 +61,7 @@ export async function replicateToSecondary(
     const response = await fetch(url, {
       method: "PUT",
       headers: {
-        "X-Replication-Request": "true",
+        [REPLICATION_REQUEST_HEADER]: "true",
         "Content-Type": getContentTypeFromExtension(objectKey),
       },
       body: fileStream,
@@ -78,14 +85,14 @@ export async function replicateToSecondary(
       log.error({ bucket, objectKey }, `Secondary 복제 타임아웃 (${getTimeoutMs()}ms 초과)`);
       // 504 Gateway Timeout: 우리 쪽 AbortController가 중단한 경우
       throw new HttpError(
-        504,
+        HTTP_STATUS_GATEWAY_TIMEOUT,
         `Secondary 복제 타임아웃 (${getTimeoutMs()}ms 초과)`,
       );
     }
 
     log.error({ error, bucket, objectKey }, "Secondary 복제 중 네트워크 오류가 발생했습니다");
     // 502 Bad Gateway: fetch 자체가 실패한 경우 (연결 거부, DNS 실패 등)
-    throw new HttpError(502, "Secondary 복제 중 네트워크 오류가 발생했습니다", {
+    throw new HttpError(HTTP_STATUS_BAD_GATEWAY, "Secondary 복제 중 네트워크 오류가 발생했습니다", {
       error: error instanceof Error ? error.message : "알 수 없는 오류",
     });
   } finally {

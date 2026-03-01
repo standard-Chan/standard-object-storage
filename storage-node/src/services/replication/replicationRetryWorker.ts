@@ -3,12 +3,14 @@ import { ReplicationQueueRepository } from "../../repository/replicationQueue";
 import { replicateToSecondary } from "./replicateToSecondary";
 import { classifyReplicationError } from "./classifyError";
 import { validateSecondaryNodeIp } from "../validation/replication";
-
-const POLL_INTERVAL_MS = 10_000;
-const BATCH_SIZE = 5;
-const METRICS_DISK_TIMEOUT_MS = 3_000;
-const MAX_SECONDARY_DISK_WRITES = 5;
-const MAX_SECONDARY_DISK_READS = 10;
+import {
+  RETRY_WORKER_BATCH_SIZE,
+  RETRY_WORKER_POLL_INTERVAL_MS,
+  SECONDARY_MAX_CONCURRENT_DISK_READS,
+  SECONDARY_MAX_CONCURRENT_DISK_WRITES,
+  SECONDARY_METRICS_DISK_PATH,
+  SECONDARY_METRICS_REQUEST_TIMEOUT_MS,
+} from "../../constants/replication";
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -29,11 +31,11 @@ async function isSecondaryNodeIdle(log: FastifyBaseLogger): Promise<boolean> {
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(),
-    METRICS_DISK_TIMEOUT_MS,
+    SECONDARY_METRICS_REQUEST_TIMEOUT_MS,
   );
 
   try {
-    const response = await fetch(`${secondaryNodeIp}/metrics/disk`, {
+    const response = await fetch(`${secondaryNodeIp}${SECONDARY_METRICS_DISK_PATH}`, {
       signal: controller.signal,
     });
 
@@ -47,8 +49,8 @@ async function isSecondaryNodeIdle(log: FastifyBaseLogger): Promise<boolean> {
 
     const metrics = (await response.json()) as DiskMetrics;
     const isIdle =
-      metrics.activeDiskWrites < MAX_SECONDARY_DISK_WRITES &&
-      metrics.activeDiskReads < MAX_SECONDARY_DISK_READS;
+      metrics.activeDiskWrites < SECONDARY_MAX_CONCURRENT_DISK_WRITES &&
+      metrics.activeDiskReads < SECONDARY_MAX_CONCURRENT_DISK_READS;
 
     if (!isIdle) {
       log.debug(
@@ -84,7 +86,7 @@ async function retryFailedReplications(
   const idle = await isSecondaryNodeIdle(log);
   if (!idle) return;
 
-  const replicationObjects = replicationQueue.fetchRetryBatch(BATCH_SIZE);
+  const replicationObjects = replicationQueue.fetchRetryBatch(RETRY_WORKER_BATCH_SIZE);
 
   if (replicationObjects.length === 0) return;
 
@@ -155,10 +157,10 @@ export function startReplicationRetryWorker(
     } finally {
       isWorking = false;
     }
-  }, POLL_INTERVAL_MS);
+  }, RETRY_WORKER_POLL_INTERVAL_MS);
 
   log.info(
-    { pollIntervalMs: POLL_INTERVAL_MS, batchSize: BATCH_SIZE },
+    { pollIntervalMs: RETRY_WORKER_POLL_INTERVAL_MS, batchSize: RETRY_WORKER_BATCH_SIZE },
     "[retryWorker] 시작",
   );
 }

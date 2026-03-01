@@ -9,6 +9,10 @@ import {
   validateReplicationParams,
   validateReplicationBodyStream,
 } from "../validation/replication";
+import {
+  REPLICATION_REQUEST_HEADER_LOWER,
+} from "../../constants/replication";
+import { DEFAULT_CONTENT_TYPE } from "../../constants/contentTypes";
 
 export interface ReplicateQuery {
   bucket: string;
@@ -24,7 +28,7 @@ export async function receiveReplication(
   request: FastifyRequest<{ Querystring: ReplicateQuery }>,
 ): Promise<FileInfo> {
   const { bucket, objectKey } = request.query;
-  const replicationHeader = request.headers["x-replication-request"];
+  const replicationHeader = request.headers[REPLICATION_REQUEST_HEADER_LOWER];
   const contentType = request.headers["content-type"];
   const bodyStream = request.body;
 
@@ -35,7 +39,7 @@ export async function receiveReplication(
 
   validateReplicationBodyStream(bodyStream);
 
-  const mimetype = contentType ?? "application/octet-stream";
+  const mimetype = contentType ?? DEFAULT_CONTENT_TYPE;
 
   const filePath = await saveStreamToStorage(
     bucket,
