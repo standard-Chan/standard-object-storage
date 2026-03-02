@@ -40,14 +40,7 @@ export async function downloadObject(
 
   validatePresignedUrlRequest(query, "GET");
 
-  const startTime = performance.now();
   const fileStream = getFileStream(bucket, objectKey);
-  const elapsedMs = (performance.now() - startTime).toFixed(3);
-
-  log.info(
-    { bucket, objectKey, elapsedMs: `${elapsedMs}ms` },
-    "읽기 처리 소요 시간 (DISK)",
-  );
   const contentType = getContentTypeFromExtension(objectKey);
 
   return { fileStream, contentType };
