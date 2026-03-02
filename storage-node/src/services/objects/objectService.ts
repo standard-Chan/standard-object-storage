@@ -1,26 +1,18 @@
-import { MultipartFile } from "@fastify/multipart";
-import { FastifyBaseLogger } from "fastify";
+import { FastifyRequest } from "fastify";
 import { validatePresignedUrlRequest } from "../validation/presignedUrl";
 import {
-  validateFileData,
-  saveFileToStorage,
-  collectFileInfo,
+  saveStreamToStorage,
+  collectStreamFileInfo,
   getFileStream,
   getContentTypeFromExtension,
   FileInfo,
 } from "../storage/fileStorage";
+import { DEFAULT_CONTENT_TYPE } from "../../constants/contentTypes";
+import { validateReplicationBodyStream } from "../validation/replication";
 import { replicateToSecondary } from "../replication/replicateToSecondary";
 import { ReplicationQueueRepository } from "../../repository/replicationQueue";
 import { classifyReplicationError } from "../replication/classifyError";
-
-interface PresignedQuery {
-  bucket: string;
-  objectKey: string;
-  method: string;
-  exp: string;
-  fileSize: string;
-  signature: string;
-}
+import { PresignedQuery } from "../../routes/objects";
 
 export interface DownloadResult {
   fileStream: ReturnType<typeof getFileStream>;
@@ -33,13 +25,12 @@ export interface DownloadResult {
  * - 파일 스트림 및 Content-Type 반환
  */
 export async function downloadObject(
-  query: PresignedQuery,
-  log: FastifyBaseLogger,
+  request: FastifyRequest<{ Querystring: PresignedQuery }>
 ): Promise<DownloadResult> {
-  const { bucket, objectKey } = query;
-  log.info({ objectKey }, "GET request received");
+  const { bucket, objectKey } = request.query;
+  request.log.info({ objectKey }, "GET request received");
 
-  validatePresignedUrlRequest(query, "GET");
+  validatePresignedUrlRequest(request.query, "GET");
 
   const fileStream = getFileStream(bucket, objectKey);
   const contentType = getContentTypeFromExtension(objectKey);
@@ -48,41 +39,42 @@ export async function downloadObject(
 }
 
 /**
- * 파일 업로드 서비스
+ * 파일 업로드 서비스 (Raw Stream 방식)
  * - Presigned URL 검증
- * - 파일 저장 → 정보 수집 → Secondary 복제
- * - Secondary 복제 실패 시 replication_queue에 upsert 후 성공 응답 유지
+ * - request body stream -> 파일시스템에 저장 → Secondary 복제
+ * - Secondary 복제 실패 시 replication_queue에 넣기
  */
 export async function uploadObject(
-  query: PresignedQuery,
-  fileData: MultipartFile | undefined,
-  log: FastifyBaseLogger,
+  request: FastifyRequest<{ Querystring: PresignedQuery }>,
   replicationQueue: ReplicationQueueRepository,
 ): Promise<FileInfo> {
-  const { bucket, objectKey } = query;
-  log.info({ objectKey }, "PUT request received");
+  const { bucket, objectKey } = request.query;
+  const mimetype = request.headers["content-type"] ?? DEFAULT_CONTENT_TYPE;
+  const bodyStream = request.body;
 
-  validatePresignedUrlRequest(query, "PUT");
-  validateFileData(fileData);
+  request.log.info({ objectKey }, "PUT request received");
 
-  const filePath = await saveFileToStorage(bucket, objectKey, fileData!);
-  const fileInfo = await collectFileInfo(
+  validatePresignedUrlRequest(request.query, "PUT");
+  validateReplicationBodyStream(bodyStream);
+
+  const filePath = await saveStreamToStorage(bucket, objectKey, bodyStream);
+  const fileInfo = await collectStreamFileInfo(
     bucket,
     objectKey,
     filePath,
-    fileData!,
+    mimetype,
   );
-  log.info({ fileInfo }, "파일 업로드 성공");
+  request.log.info({ fileInfo }, "파일 업로드 성공");
 
   try {
-    replicateToSecondary(bucket, objectKey, log);
-    log.info({ bucket, objectKey }, "Secondary-Node 복제 완료");
+    replicateToSecondary(bucket, objectKey, request.log);
+    request.log.info({ bucket, objectKey }, "Secondary-Node 복제 완료");
   } catch (error) {
     const errorType = classifyReplicationError(error);
     const errorMessage =
       error instanceof Error ? error.message : "알 수 없는 오류";
 
-    log.warn(
+    request.log.warn(
       { bucket, objectKey, errorType, errorMessage },
       "Secondary 복제 실패 - replication_queue에 등록",
     );

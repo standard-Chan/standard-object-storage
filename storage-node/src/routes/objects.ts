@@ -9,7 +9,7 @@ import {
   uploadObject,
 } from "../services/objects/objectService";
 
-interface ObjectQuery {
+export interface PresignedQuery {
   bucket: string;
   objectKey: string;
   method: string;
@@ -24,20 +24,24 @@ interface ObjectParams {
 }
 
 const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
+  // multipart 파서가 처리하지 않는 Content-Type(raw binary 등)을 스트림으로 그대로 통과
+  fastify.addContentTypeParser(
+    "*",
+    function (_request, payload, done) {
+      done(null, payload);
+    },
+  );
+
   /**
    * GET /objects/:bucket/:key
    * - 파일 다운로드 엔드포인트
-   * - Presigned URL 검증 후 파일 스트림 반환
    */
   fastify.get<{
     Params: ObjectParams;
-    Querystring: ObjectQuery;
+    Querystring: PresignedQuery;
   }>("/uploads/direct/:bucket/*", async function (request, reply) {
     try {
-      const { fileStream, contentType } = await downloadObject(
-        request.query,
-        request.log,
-      );
+      const { fileStream, contentType } = await downloadObject(request);
 
       reply.header("Content-Type", contentType);
       return reply.send(fileStream);
@@ -69,19 +73,14 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
   /**
    * PUT /objects/:bucket/:key
    * - 파일 업로드 엔드포인트
-   * - 로컬 파일시스템에 저장
    */
   fastify.put<{
     Params: ObjectParams;
-    Querystring: ObjectQuery;
+    Querystring: PresignedQuery;
   }>("/uploads/direct/:bucket/*", async function (request, reply) {
     try {
-      // TODO: MySQL에 메타데이터 저장
-      const fileData = await request.file();
       const fileInfo = await uploadObject(
-        request.query,
-        fileData,
-        request.log,
+        request,
         fastify.replicationQueue,
       );
 
