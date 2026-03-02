@@ -14,6 +14,9 @@ import org.springframework.web.util.UriUtils;
 public class PresignedUrlService {
 
     private static final Logger log = LoggerFactory.getLogger(PresignedUrlService.class);
+    private static final long RESUMABLE_UPLOAD_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    private static final String DIRECT_UPLOAD_PATH = "uploads/direct";
+    private static final String RESUMABLE_UPLOAD_PATH = "uploads/resumable";
 
     @Value("${SECRET_KEY}")
     private String SECRET_KEY;
@@ -32,13 +35,17 @@ public class PresignedUrlService {
         return generatePresignedUrl(bucket, objectKey, fileSize, HttpMethod.GET.name());
     }
 
-    // 공통 Presigned URL 생성 로직
+    /**
+     * Presigned URL 생성 로직 fileSize에 따라 일반 업로드 또는 Resumable Upload 로 URL을 생성합니다.
+     */
     private String generatePresignedUrl(
         String bucket,
         String objectKey,
         long fileSize,
         String method
     ) {
+        String basePath = isResumableSize(fileSize) ? RESUMABLE_UPLOAD_PATH : DIRECT_UPLOAD_PATH;
+
         try {
 
             if ((SECRET_KEY == null || SECRET_KEY.isBlank())
@@ -66,8 +73,9 @@ public class PresignedUrlService {
                 UriUtils.encodePath(objectKey, StandardCharsets.UTF_8);
 
             return String.format(
-                "%s/objects/%s/%s?bucket=%s&objectKey=%s&method=%s&exp=%d&fileSize=%d&signature=%s",
+                "%s/%s/%s/%s?bucket=%s&objectKey=%s&method=%s&exp=%d&fileSize=%d&signature=%s",
                 NODE_ENDPOINT,
+                basePath,
                 encodedBucket,
                 encodedObjectKey,
                 bucket,
@@ -82,6 +90,11 @@ public class PresignedUrlService {
             log.error("Presigned URL 생성 실패", e);
             throw new RuntimeException("Presigned URL 생성에 실패하였습니다", e);
         }
+    }
+
+    // resumable upload 여부 판단 (대용량인 경우에만 처리)
+    private boolean isResumableSize(long fileSize) {
+        return fileSize >= RESUMABLE_UPLOAD_FILE_SIZE;
     }
 
     private String generateSignature(
