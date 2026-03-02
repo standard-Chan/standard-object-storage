@@ -81,7 +81,7 @@ export async function uploadObject(
   log.info({ fileInfo }, "파일 업로드 성공");
 
   try {
-    await replicateToSecondary(bucket, objectKey, log);
+    replicateToSecondary(bucket, objectKey, log);
     log.info({ bucket, objectKey }, "Secondary-Node 복제 완료");
   } catch (error) {
     const errorType = classifyReplicationError(error);
