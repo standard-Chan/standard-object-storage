@@ -31,7 +31,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
   fastify.get<{
     Params: ObjectParams;
     Querystring: ObjectQuery;
-  }>("/objects/:bucket/*", async function (request, reply) {
+  }>("/uploads/direct/:bucket/*", async function (request, reply) {
     try {
       const { fileStream, contentType } = await downloadObject(
         request.query,
@@ -73,7 +73,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
   fastify.put<{
     Params: ObjectParams;
     Querystring: ObjectQuery;
-  }>("/:bucket/*", async function (request, reply) {
+  }>("/uploads/direct/:bucket/*", async function (request, reply) {
     try {
       // TODO: MySQL에 메타데이터 저장
       const fileData = await request.file();
