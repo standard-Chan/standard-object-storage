@@ -2,6 +2,7 @@ package com.standard.objectstorage.controlplane.storage;
 
 import com.standard.objectstorage.controlplane.storage.dto.PresignedUrlRequest;
 import com.standard.objectstorage.controlplane.storage.dto.PresignedUrlResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,22 +18,24 @@ public class PresignedUrlController {
 
     @PostMapping("/presigned-url")
     public PresignedUrlResponse createPutPresignedUrl(
-        @RequestBody PresignedUrlRequest request
+        @Valid @RequestBody PresignedUrlRequest request
     ) {
         String presignedUrl = presignedUrlService.generatePutPresignedUrl(
             request.getBucket(),
-            request.getObjectKey()
+            request.getObjectKey(),
+            request.getFileSize()
         );
         return new PresignedUrlResponse(presignedUrl);
     }
 
     @PostMapping("/presigned-url/get")
     public PresignedUrlResponse createGetPresignedUrl(
-        @RequestBody PresignedUrlRequest request
+        @Valid @RequestBody PresignedUrlRequest request
     ) {
         String presignedUrl = presignedUrlService.generateGetPresignedUrl(
             request.getBucket(),
-            request.getObjectKey()
+            request.getObjectKey(),
+            request.getFileSize()
         );
         return new PresignedUrlResponse(presignedUrl);
     }

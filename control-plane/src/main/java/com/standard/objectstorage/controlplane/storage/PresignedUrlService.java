@@ -21,20 +21,22 @@ public class PresignedUrlService {
     @Value("${NODE_ENDPOINT}")
     private String NODE_ENDPOINT;
 
-    public String generatePutPresignedUrl(String bucket, String objectKey) {
-        log.info("PUT Presigned URL 생성 요청 - bucket: {}, objectKey: {}", bucket, objectKey);
-        return generatePresignedUrl(bucket, objectKey, HttpMethod.PUT.name());
+    public String generatePutPresignedUrl(String bucket, String objectKey, long fileSize) {
+        log.info("PUT Presigned URL 생성 요청 - bucket: {}, objectKey: {}, fileSize: {}", bucket,
+            objectKey, fileSize);
+        return generatePresignedUrl(bucket, objectKey, fileSize, HttpMethod.PUT.name());
     }
 
-    public String generateGetPresignedUrl(String bucket, String objectKey) {
+    public String generateGetPresignedUrl(String bucket, String objectKey, long fileSize) {
         log.info("GET Presigned URL 생성 요청 - bucket: {}, objectKey: {}", bucket, objectKey);
-        return generatePresignedUrl(bucket, objectKey, HttpMethod.GET.name());
+        return generatePresignedUrl(bucket, objectKey, fileSize, HttpMethod.GET.name());
     }
 
     // 공통 Presigned URL 생성 로직
     private String generatePresignedUrl(
         String bucket,
         String objectKey,
+        long fileSize,
         String method
     ) {
         try {
@@ -53,7 +55,8 @@ public class PresignedUrlService {
                 bucket,
                 objectKey,
                 method,
-                expiresAt
+                expiresAt,
+                fileSize
             );
 
             String encodedBucket =
@@ -63,7 +66,7 @@ public class PresignedUrlService {
                 UriUtils.encodePath(objectKey, StandardCharsets.UTF_8);
 
             return String.format(
-                "%s/objects/%s/%s?bucket=%s&objectKey=%s&method=%s&exp=%d&signature=%s",
+                "%s/objects/%s/%s?bucket=%s&objectKey=%s&method=%s&exp=%d&fileSize=%d&signature=%s",
                 NODE_ENDPOINT,
                 encodedBucket,
                 encodedObjectKey,
@@ -71,6 +74,7 @@ public class PresignedUrlService {
                 objectKey,
                 method,
                 expiresAt,
+                fileSize,
                 signature
             );
 
@@ -84,14 +88,16 @@ public class PresignedUrlService {
         String bucket,
         String objectKey,
         String method,
-        long exp
+        long exp,
+        long fileSize
     ) throws Exception {
         String canonicalString = String.format(
-            "bucket=%s&objectKey=%s&method=%s&exp=%d",
+            "bucket=%s&objectKey=%s&method=%s&exp=%d&fileSize=%d",
             bucket,
             objectKey,
             method,
-            exp
+            exp,
+            fileSize
         );
         return CryptoUtils.hmacSha256Base64Url(
             canonicalString,
