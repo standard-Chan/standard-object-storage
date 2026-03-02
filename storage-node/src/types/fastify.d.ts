@@ -1,6 +1,7 @@
 import { MySQLPromisePool } from "@fastify/mysql";
 import type { Database } from "better-sqlite3";
 import type { ReplicationQueueRepository } from "../repository/replicationQueue";
+import type { Server as TusServer } from "tus-node-server";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -9,5 +10,7 @@ declare module "fastify" {
     db: InstanceType<typeof Database>;
     /** replication_queue 테이블 전용 typed 쿼리 함수 집합 */
     replicationQueue: ReplicationQueueRepository;
+    /** TUS 프로토콜 서버 (resume upload) */
+    tusServer: TusServer;
   }
 }
