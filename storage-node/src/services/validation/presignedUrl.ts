@@ -49,6 +49,21 @@ export function validateMethod(
 }
 
 /**
+ * 파일 크기 검증
+ */
+export function validateFileSize(fileSize: string): void {
+  const size = Number(fileSize);
+
+  if (isNaN(size) || !Number.isInteger(size)) {
+    throw new HttpError(400, "파일 크기(fileSize)가 유효하지 않습니다");
+  }
+
+  if (size <= 0) {
+    throw new HttpError(400, "파일 크기(fileSize)는 0보다 커야 합니다");
+  }
+}
+
+/**
  * 서명 검증
  */
 export function validateRequestSignature(
@@ -56,6 +71,7 @@ export function validateRequestSignature(
   bucket: string,
   key: string,
   exp: string,
+  fileSize: string,
   signature: string,
 ): void {
   const secretKey = process.env.PRESIGNED_URL_SECRET_KEY;
@@ -69,6 +85,7 @@ export function validateRequestSignature(
     bucket,
     key,
     expTimestamp,
+    fileSize,
     signature,
     secretKey,
   );
@@ -88,13 +105,15 @@ export function validatePresignedUrlRequest(
     objectKey: string;
     method: string;
     exp: string;
+    fileSize: string;
     signature: string;
   },
   expectedMethod: "GET" | "PUT",
 ): void {
-  const { bucket, objectKey, method, exp, signature } = query;
+  const { bucket, objectKey, method, exp, fileSize, signature } = query;
   validateRequiredParams(bucket, objectKey, method, exp, signature);
   validateExpiration(exp);
   validateMethod(method, expectedMethod);
-  validateRequestSignature(method, bucket, objectKey, exp, signature);
+  validateFileSize(fileSize);
+  validateRequestSignature(method, bucket, objectKey, exp, fileSize, signature);
 }

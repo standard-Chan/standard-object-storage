@@ -18,6 +18,7 @@ interface PresignedQuery {
   objectKey: string;
   method: string;
   exp: string;
+  fileSize: string;
   signature: string;
 }
 

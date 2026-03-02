@@ -47,12 +47,13 @@ export function verifySignature(
   bucket: string,
   objectKey: string,
   exp: number,
+  fileSize: string,
   signature: string,
   secret: string
 ): boolean {
-  // 서명 데이터 생성: bucket=...&key=...&method=...&exp=...
+  // 서명 데이터 생성: bucket=...&objectKey=...&method=...&exp=...&fileSize=...
   // Java의 PresignedUrlService.generateSignature()와 동일한 형식
-  const data = `bucket=${bucket}&objectKey=${objectKey}&method=${method}&exp=${exp}`
+  const data = `bucket=${bucket}&objectKey=${objectKey}&method=${method}&exp=${exp}&fileSize=${fileSize}`
   
   // 기대하는 서명 생성
   const expectedSignature = hmacSha256Base64Url(data, secret)

@@ -14,6 +14,7 @@ interface ObjectQuery {
   objectKey: string;
   method: string;
   exp: string;
+  fileSize: string;
   signature: string;
 }
 
