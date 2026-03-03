@@ -15,8 +15,8 @@ public class PresignedUrlService {
 
     private static final Logger log = LoggerFactory.getLogger(PresignedUrlService.class);
     private static final long RESUMABLE_UPLOAD_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-    private static final String DIRECT_UPLOAD_PATH = "uploads/direct";
-    private static final String RESUMABLE_UPLOAD_PATH = "uploads/resumable";
+    private static final String DIRECT_PATH = "objects/direct";
+    private static final String RESUMABLE_PATH = "objects/resumable";
 
     @Value("${SECRET_KEY}")
     private String SECRET_KEY;
@@ -24,27 +24,35 @@ public class PresignedUrlService {
     @Value("${NODE_ENDPOINT}")
     private String NODE_ENDPOINT;
 
-    public String generatePutPresignedUrl(String bucket, String objectKey, long fileSize) {
-        log.info("PUT Presigned URL 생성 요청 - bucket: {}, objectKey: {}, fileSize: {}", bucket,
+    public String generateUploadPresignedUrl(String bucket, String objectKey, long fileSize) {
+        log.info("Upload Presigned URL 생성 요청 - bucket: {}, objectKey: {}, fileSize: {}", bucket,
             objectKey, fileSize);
-        return generatePresignedUrl(bucket, objectKey, fileSize, HttpMethod.PUT.name());
+        if (isResumableSize(fileSize)) {
+            return generatePresignedUrl(RESUMABLE_PATH, bucket, objectKey, fileSize,
+                HttpMethod.POST.name());
+        } else {
+            return generatePresignedUrl(DIRECT_PATH, bucket, objectKey, fileSize,
+                HttpMethod.PUT.name());
+        }
+
     }
 
     public String generateGetPresignedUrl(String bucket, String objectKey, long fileSize) {
         log.info("GET Presigned URL 생성 요청 - bucket: {}, objectKey: {}", bucket, objectKey);
-        return generatePresignedUrl(bucket, objectKey, fileSize, HttpMethod.GET.name());
+        return generatePresignedUrl(DIRECT_PATH, bucket, objectKey, fileSize,
+            HttpMethod.GET.name());
     }
 
     /**
      * Presigned URL 생성 로직 fileSize에 따라 일반 업로드 또는 Resumable Upload 로 URL을 생성합니다.
      */
     private String generatePresignedUrl(
+        String basePath,
         String bucket,
         String objectKey,
         long fileSize,
         String method
     ) {
-        String basePath = isResumableSize(fileSize) ? RESUMABLE_UPLOAD_PATH : DIRECT_UPLOAD_PATH;
 
         try {
 

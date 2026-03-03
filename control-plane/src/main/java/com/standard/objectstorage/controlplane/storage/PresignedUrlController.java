@@ -20,7 +20,7 @@ public class PresignedUrlController {
     public PresignedUrlResponse createPutPresignedUrl(
         @Valid @RequestBody PresignedUrlRequest request
     ) {
-        String presignedUrl = presignedUrlService.generatePutPresignedUrl(
+        String presignedUrl = presignedUrlService.generateUploadPresignedUrl(
             request.getBucket(),
             request.getObjectKey(),
             request.getFileSize()
