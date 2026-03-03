@@ -38,7 +38,7 @@ export function validateExpiration(exp: string): void {
  */
 export function validateMethod(
   method: string,
-  expectedMethod: string = "PUT",
+  expectedMethod: string,
 ): void {
   if (method.toUpperCase() !== expectedMethod.toUpperCase()) {
     throw new HttpError(
@@ -108,7 +108,7 @@ export function validatePresignedUrlRequest(
     fileSize: string;
     signature: string;
   },
-  expectedMethod: "GET" | "PUT",
+  expectedMethod: "GET" | "PUT" | "POST" | "HEAD",
 ): void {
   const { bucket, objectKey, method, exp, fileSize, signature } = query;
   validateRequiredParams(bucket, objectKey, method, exp, signature);
