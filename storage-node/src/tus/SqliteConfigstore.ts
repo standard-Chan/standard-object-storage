@@ -25,7 +25,6 @@ export default class SqliteConfigstore {
   async get(key: string): Promise<IFile | undefined> {
     const row = this.getStmt.get(key) as TusFile | undefined;
     if (row === undefined) return undefined;
-    // TusFile로 객체를 생성. size는 FileStore.getOffset()이 동적으로 주입하므로 저장 대상이 아님
     const file = new TusFile(
       row.id,
       row.upload_length ?? "",
