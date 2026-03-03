@@ -39,7 +39,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
   fastify.get<{
     Params: ObjectParams;
     Querystring: PresignedQuery;
-  }>("/uploads/direct/:bucket/*", async function (request, reply) {
+  }>("/objects/direct/:bucket/*", async function (request, reply) {
     try {
       const { fileStream, contentType } = await downloadFile(request);
 
@@ -77,7 +77,7 @@ const objects: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
   fastify.put<{
     Params: ObjectParams;
     Querystring: PresignedQuery;
-  }>("/uploads/direct/:bucket/*", async function (request, reply) {
+  }>("/objects/direct/:bucket/*", async function (request, reply) {
     try {
       const fileInfo = await uploadFile(
         request,
