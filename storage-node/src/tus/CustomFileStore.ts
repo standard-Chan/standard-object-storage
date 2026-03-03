@@ -1,8 +1,10 @@
-import { FileStore } from "tus-node-server";
+import { FileStore, DataStore } from "tus-node-server";
 import * as fs from "fs";
 import * as path from "path";
 
 type FileStoreOptions = ConstructorParameters<typeof FileStore>[0];
+type TusFile = Parameters<DataStore["create"]>[0];
+type TusIFile = Awaited<ReturnType<DataStore["create"]>>;
 
 /**
  * FileStore를 확장한 CustomFileStore.
@@ -17,9 +19,7 @@ class CustomFileStore extends FileStore {
     this._directory = options.directory;
   }
 
-  create(
-    file: Parameters<FileStore["create"]>[0]
-  ): ReturnType<FileStore["create"]> {
+  create(file: TusFile): Promise<TusIFile> {
     return new Promise((resolve, reject) => {
       const filePath = path.join(this._directory, (file as unknown as { id: string }).id);
       const dirPath = path.dirname(filePath);
