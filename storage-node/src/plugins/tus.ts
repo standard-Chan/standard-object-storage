@@ -22,10 +22,17 @@ export default fp(
   tusServer.on(EVENTS.EVENT_FILE_CREATED, onFileCreated(fastify));
   tusServer.on(EVENTS.EVENT_UPLOAD_COMPLETE, onUploadComplete(fastify));
 
-  const tusSessionStore = new TusSessionStore(fastify.db);
+  const tusSessionStore = new TusSessionStore(fastify.db, undefined, fastify.log);
 
   fastify.decorate("tusServer", tusServer);
   fastify.decorate("tusSessionStore", tusSessionStore);
+
+  tusSessionStore.startCleanupSchedule();
+
+  fastify.addHook("onClose", (_instance, done) => {
+    tusSessionStore.stopCleanupSchedule();
+    done();
+  });
   },
   {
     name: "tus",
