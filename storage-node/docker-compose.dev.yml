@@ -15,6 +15,7 @@ services:
       - CHOKIDAR_USEPOLLING=true
       - ROLE=primary
       - SECONDARY_NODE_IP=http://secondary-node:3000
+      - LOCAL_HOST=http://localhost:3000
     volumes:
       - .:/app
       - /app/node_modules
