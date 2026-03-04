@@ -8,10 +8,14 @@ const QUERIES = {
     FROM tus_uploads 
     WHERE id = ?
   `,
+  // expires_at은 TusSessionStore가 관리하므로 덮어쓰지 않는다
   SET: `
-    INSERT OR REPLACE INTO tus_uploads 
-    (id, upload_length, upload_defer_length, upload_metadata) 
+    INSERT INTO tus_uploads (id, upload_length, upload_defer_length, upload_metadata)
     VALUES (?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      upload_length        = excluded.upload_length,
+      upload_defer_length  = excluded.upload_defer_length,
+      upload_metadata      = excluded.upload_metadata
   `,
   DELETE: `
     DELETE FROM tus_uploads 
