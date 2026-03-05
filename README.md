@@ -22,6 +22,6 @@
 - [서버 상황에 맞춰 복제 로직 수행](https://velog.io/@standard-chan/storage-3-%EC%84%9C%EB%B2%84-%EC%83%81%ED%99%A9%EC%97%90-%EB%94%B0%EB%A5%B8-%EC%9E%AC%EB%B3%B5%EC%A0%9C-%EC%9A%94%EC%B2%AD-%EC%A0%84%EC%86%A1%ED%95%98%EA%B8%B0)
 
 ## 2. 데이터 업로드
-- [대용량 파일 업로드 중 실패 시, 업로드 재개 기능 도입](https://www.notion.so/316fc6c667018030aaebe087265d16da?source=copy_link)
+- [대용량 파일 업로드 중 실패 시, 업로드 재개 기능 도입](https://velog.io/@standard-chan/storage-4-%EB%8C%80%EC%9A%A9%EB%9F%89-%ED%8C%8C%EC%9D%BC-Resumable-Upload-%EA%B8%B0%EB%8A%A5-%EA%B5%AC%ED%98%84%ED%95%98%EA%B8%B0-277lp3og)
 
 ---
