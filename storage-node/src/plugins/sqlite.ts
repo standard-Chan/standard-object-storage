@@ -1,7 +1,10 @@
 import fp from "fastify-plugin";
 import Database from "better-sqlite3";
 import { FastifyPluginCallback } from "fastify";
-import { CREATE_REPLICATION_QUEUE_TABLE, CREATE_TUS_UPLOADS_TABLE } from "../db/schema";
+import {
+  CREATE_REPLICATION_QUEUE_TABLE,
+  CREATE_TUS_UPLOADS_TABLE,
+} from "../db/schema";
 import {
   createReplicationQueueRepository,
   ReplicationQueueRepository,
@@ -17,7 +20,6 @@ const sqlitePlugin: FastifyPluginCallback = (fastify, _opts, done) => {
   try {
     db = new Database(DB_PATH);
   } catch (err) {
-    // DB 파일 오픈 자체가 실패하면 서버 부팅을 중단합니다.
     done(
       err instanceof Error
         ? err

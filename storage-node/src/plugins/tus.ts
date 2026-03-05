@@ -7,6 +7,7 @@ import CustomFileStore from "../tus/CustomFileStore";
 import SqliteConfigstore from "../tus/SqliteConfigstore";
 import { TusSessionStore } from "../tus/TusSessionStore";
 
+const UPLOAD_BASE_DIR = process.env.UPLOAD_BASE_DIR ?? "uploads";
 const TUS_API_ENDPOINT = "/tus/objects";
 
 /**
@@ -14,25 +15,35 @@ const TUS_API_ENDPOINT = "/tus/objects";
  */
 export default fp(
   async (fastify) => {
-  const uploadBaseDir = join(process.cwd(), "uploads/tus");
-  const configstore = new SqliteConfigstore(fastify.db);
-  const tusServer = new TusServer({ path: TUS_API_ENDPOINT, namingFunction });
-  tusServer.datastore = new CustomFileStore({ directory: uploadBaseDir, configstore });
+    const uploadBaseDir = join(process.cwd(), UPLOAD_BASE_DIR);
+    const configstore = new SqliteConfigstore(fastify.db);
 
-  tusServer.on(EVENTS.EVENT_FILE_CREATED, onFileCreated(fastify));
-  tusServer.on(EVENTS.EVENT_UPLOAD_COMPLETE, onUploadComplete(fastify));
+    const options = { path: TUS_API_ENDPOINT, namingFunction };
+    const tusServer = new TusServer(options);
 
-  const tusSessionStore = new TusSessionStore(fastify.db, undefined, fastify.log);
+    tusServer.datastore = new CustomFileStore({
+      directory: uploadBaseDir,
+      configstore,
+    });
 
-  fastify.decorate("tusServer", tusServer);
-  fastify.decorate("tusSessionStore", tusSessionStore);
+    tusServer.on(EVENTS.EVENT_FILE_CREATED, onFileCreated(fastify));
+    tusServer.on(EVENTS.EVENT_UPLOAD_COMPLETE, onUploadComplete(fastify));
 
-  tusSessionStore.startCleanupSchedule();
+    const tusSessionStore = new TusSessionStore(
+      fastify.db,
+      undefined,
+      fastify.log,
+    );
 
-  fastify.addHook("onClose", (_instance, done) => {
-    tusSessionStore.stopCleanupSchedule();
-    done();
-  });
+    tusSessionStore.startCleanupSchedule();
+
+    fastify.decorate("tusServer", tusServer);
+    fastify.decorate("tusSessionStore", tusSessionStore);
+
+    fastify.addHook("onClose", (_instance, done) => {
+      tusSessionStore.stopCleanupSchedule();
+      done();
+    });
   },
   {
     name: "tus",
