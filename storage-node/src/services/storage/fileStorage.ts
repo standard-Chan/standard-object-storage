@@ -183,6 +183,8 @@ export function getContentTypeFromExtension(objectKey: string): string {
   return CONTENT_TYPE_MAP[ext] || DEFAULT_CONTENT_TYPE
 }
 
+// ─── 파일 읽기 스트림 ─────────────────────────────────────────────────────────
+
 /**
  * 파일 읽기 스트림 생성
  */
