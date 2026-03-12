@@ -3,7 +3,7 @@ import * as assert from "node:assert";
 import path from "node:path";
 import { promises as fsPromises } from "node:fs";
 import { build } from "../helper";
-import { __resetMultipartSessionsForTests } from "../../src/services/objects/multipartService";
+import { MultipartService } from "../../src/services/multipart/MultipartService";
 
 test("multipart initiate/upload/complete flow", async (t) => {
   const app = await build(t);
@@ -13,7 +13,7 @@ test("multipart initiate/upload/complete flow", async (t) => {
   let uploadId = "";
 
   t.after(async () => {
-    __resetMultipartSessionsForTests();
+    MultipartService.getInstance().resetForTests();
     await fsPromises.rm(path.join(process.cwd(), "uploads", bucket), {
       recursive: true,
       force: true,
@@ -66,7 +66,7 @@ test("multipart initiate/upload/complete flow", async (t) => {
   });
   assert.strictEqual(uploadPart1Res.statusCode, 200);
 
-  // 동일 partNumber 재업로드(덮어쓰기) 허용
+  // ?�일 partNumber ?�업로드(??��?�기) ?�용
   const reuploadPart2Res = await app.inject({
     method: "PUT",
     url: `/multipart/${uploadId}/2`,
@@ -103,7 +103,7 @@ test("multipart abort returns 200 and invalidates uploadId", async (t) => {
   let uploadId = "";
 
   t.after(async () => {
-    __resetMultipartSessionsForTests();
+    MultipartService.getInstance().resetForTests();
     await fsPromises.rm(path.join(process.cwd(), "uploads", bucket), {
       recursive: true,
       force: true,
@@ -156,7 +156,7 @@ test("multipart invalid partNumber returns 400", async (t) => {
   let uploadId = "";
 
   t.after(async () => {
-    __resetMultipartSessionsForTests();
+    MultipartService.getInstance().resetForTests();
     await fsPromises.rm(path.join(process.cwd(), "uploads", bucket), {
       recursive: true,
       force: true,

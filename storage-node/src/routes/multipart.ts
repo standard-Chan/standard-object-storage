@@ -5,14 +5,13 @@ import {
 } from "../services/response/apiResponse";
 import { HttpError } from "../utils/HttpError";
 import {
-  abortMultipartUpload,
-  completeMultipartUpload,
-  initiateMultipartUpload,
-  uploadPart,
+  MultipartService,
   InitiateMultipartBody,
   MultipartParams,
   UploadPartParams,
-} from "../services/objects/multipartService";
+} from "../services/multipart/MultipartService";
+
+const multipartService = MultipartService.getInstance();
 
 const multipart: FastifyPluginAsync = async (fastify): Promise<void> => {
   fastify.addContentTypeParser("*", function (_request, payload, done) {
@@ -23,7 +22,7 @@ const multipart: FastifyPluginAsync = async (fastify): Promise<void> => {
     "/multipart/initiate",
     async function (request, reply) {
       try {
-        const multipartInfo = await initiateMultipartUpload(request);
+        const multipartInfo = await multipartService.initiateMultipartUpload(request);
 
         return reply.code(201).send({
           success: true,
@@ -47,7 +46,7 @@ const multipart: FastifyPluginAsync = async (fastify): Promise<void> => {
     "/multipart/:uploadId/:partNumber",
     async function (request, reply) {
       try {
-        const partInfo = await uploadPart(request);
+        const partInfo = await multipartService.uploadPart(request);
 
         return reply.code(200).send({
           success: true,
@@ -71,7 +70,7 @@ const multipart: FastifyPluginAsync = async (fastify): Promise<void> => {
     "/multipart/:uploadId/complete",
     async function (request, reply) {
       try {
-        const completed = await completeMultipartUpload(request);
+        const completed = await multipartService.completeMultipartUpload(request);
 
         fastify.replicationQueue.registerReplicationTask(
           completed.fileInfo.bucket,
@@ -103,7 +102,7 @@ const multipart: FastifyPluginAsync = async (fastify): Promise<void> => {
     "/multipart/:uploadId",
     async function (request, reply) {
       try {
-        const uploadId = await abortMultipartUpload(request);
+        const uploadId = await multipartService.abortMultipartUpload(request);
         return reply.code(200).send({
           success: true,
           message: "멀티파트 업로드가 취소되었습니다",

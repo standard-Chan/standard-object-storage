@@ -18,6 +18,9 @@ export function validateObjectKey(objectKey: string): void {
   }
 }
 
+/**
+ * string -> number 변환 및 검증
+ */
 export function parsePartNumber(partNumber: string): number {
   const parsed = Number.parseInt(partNumber, 10);
   if (!Number.isInteger(parsed) || parsed <= 0) {
