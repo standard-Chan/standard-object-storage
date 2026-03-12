@@ -1,0 +1,191 @@
+@storageNodeUrl = http://localhost:3000
+
+###############################################
+### Multipart Upload 테스트
+###
+### 순서:
+###   Step 1: initiate → uploadId 발급
+###   Step 2: part 업로드 (각 part는 개별 바이너리)
+###   Step 3: complete → part 병합 후 최종 파일 생성
+###   Step 4 (선택): abort → 진행 중인 업로드 취소
+###############################################
+
+
+###############################################
+### Step 1. 멀티파트 업로드 시작 (uploadId 발급)
+###############################################
+
+### 1-1. uploadId 발급
+# @name initiate
+POST {{storageNodeUrl}}/multipart/initiate
+Content-Type: application/json
+
+{
+  "bucket": "test-bucket",
+  "objectKey": "multipart/10mb-assembled.bin",
+  "contentType": "application/octet-stream"
+}
+
+###
+### 성공 응답 예시 (201):
+### {
+###   "success": true,
+###   "message": "멀티파트 업로드가 시작되었습니다",
+###   "data": {
+###     "uploadId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+###     "expiresAt": "2026-03-12T10:00:00.000Z",
+###     "status": "INITIATED"
+###   }
+### }
+
+
+###############################################
+### Step 2. Part 업로드
+###
+### - partNumber는 1 이상의 정수 (순서대로 병합됨)
+### - 같은 partNumber 재업로드 시 덮어쓰기
+### - 아래 uploadId를 Step 1 응답값으로 교체하세요
+###############################################
+
+### 2-1. Part 1 업로드
+PUT {{storageNodeUrl}}/multipart/{{initiate.response.body.data.uploadId}}/1
+Content-Type: application/octet-stream
+
+< ./test-files/10mb.bin
+
+###
+### 성공 응답 예시 (200):
+### {
+###   "success": true,
+###   "message": "part 업로드가 완료되었습니다",
+###   "data": {
+###     "uploadId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+###     "partNumber": 1,
+###     "size": 10485760,
+###     "etag": "abc123..."
+###   }
+### }
+
+### 2-2. Part 2 업로드
+PUT {{storageNodeUrl}}/multipart/{{initiate.response.body.data.uploadId}}/2
+Content-Type: application/octet-stream
+
+< ./test-files/10mb.bin
+
+### 2-3. Part 1 재업로드 (덮어쓰기 확인용)
+PUT {{storageNodeUrl}}/multipart/{{initiate.response.body.data.uploadId}}/1
+Content-Type: application/octet-stream
+
+< ./test-files/10mb.bin
+
+
+###############################################
+### Step 3. 업로드 완료 (part 병합)
+###
+### 서버 디스크의 part 목록을 기준으로 병합됩니다.
+### 클라이언트가 part 목록을 전달할 필요 없습니다.
+###############################################
+
+### 3-1. Complete
+POST {{storageNodeUrl}}/multipart/{{initiate.response.body.data.uploadId}}/complete
+
+###
+### 성공 응답 예시 (200):
+### {
+###   "success": true,
+###   "message": "파일이 성공적으로 업로드되었습니다",
+###   "data": {
+###     "bucket": "test-bucket",
+###     "key": "multipart/10mb-assembled.bin",
+###     "size": 20971520,
+###     "partCount": 2,
+###     "uploadedAt": "2026-03-12T09:00:00.000Z"
+###   }
+### }
+
+
+###############################################
+### Step 4. 업로드 취소 (abort)
+###
+### complete 전에 취소할 경우 사용
+### 이미 complete된 uploadId는 404 반환
+###############################################
+
+### 4-1. Abort (업로드 취소)
+### 주의: Step 1을 다시 실행해서 새 uploadId를 발급받아 사용하세요
+# @name initiateForAbort
+POST {{storageNodeUrl}}/multipart/initiate
+Content-Type: application/json
+
+{
+  "bucket": "test-bucket",
+  "objectKey": "multipart/abort-test.bin"
+}
+
+### 4-2. Part 업로드 후
+PUT {{storageNodeUrl}}/multipart/{{initiateForAbort.response.body.data.uploadId}}/1
+Content-Type: application/octet-stream
+
+< ./test-files/10mb.bin
+
+### 4-3. Abort 실행 (200 반환)
+DELETE {{storageNodeUrl}}/multipart/{{initiateForAbort.response.body.data.uploadId}}
+
+###
+### 성공 응답 예시 (200):
+### {
+###   "success": true,
+###   "message": "멀티파트 업로드가 취소되었습니다",
+###   "data": {
+###     "uploadId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+###   }
+### }
+
+
+###############################################
+### 오류 시나리오 테스트
+###############################################
+
+### E-1. 존재하지 않는 uploadId로 part 업로드 (404 예상)
+PUT {{storageNodeUrl}}/multipart/00000000-0000-0000-0000-000000000000/1
+Content-Type: application/octet-stream
+
+< ./test-files/10mb.bin
+
+### E-2. partNumber 0 (잘못된 값) → 400 예상
+PUT {{storageNodeUrl}}/multipart/{{initiate.response.body.data.uploadId}}/0
+Content-Type: application/octet-stream
+
+< ./test-files/10mb.bin
+
+### E-3. part 없이 complete 시도 (400 예상)
+### 주의: 새 uploadId 발급 후 part 없이 바로 complete
+# @name initiateNopart
+POST {{storageNodeUrl}}/multipart/initiate
+Content-Type: application/json
+
+{
+  "bucket": "test-bucket",
+  "objectKey": "multipart/nopart-test.bin"
+}
+
+###
+POST {{storageNodeUrl}}/multipart/{{initiateNopart.response.body.data.uploadId}}/complete
+
+### E-4. bucket 이름에 허용되지 않는 문자 (400 예상)
+POST {{storageNodeUrl}}/multipart/initiate
+Content-Type: application/json
+
+{
+  "bucket": "invalid bucket!",
+  "objectKey": "test.bin"
+}
+
+### E-5. objectKey에 경로 탐색 문자 포함 (400 예상)
+POST {{storageNodeUrl}}/multipart/initiate
+Content-Type: application/json
+
+{
+  "bucket": "test-bucket",
+  "objectKey": "../../etc/passwd"
+}
