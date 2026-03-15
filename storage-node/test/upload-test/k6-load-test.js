@@ -30,9 +30,10 @@ const BUCKET = __ENV.BUCKET || 'bucket1';
 // 파일 크기 정의 및 파일 로드 (바이트)
 // init context에서 로드되어 모든 VU가 공유 (메모리 효율적)
 const FILE_SIZES = [
-  { label: '1MB', size: 1 * 1024 * 1024, data: open('./test-files/1MB.bin', 'b') },
-  { label: '10MB', size: 10 * 1024 * 1024, data: open('./test-files/10MB.bin', 'b') },
-  // { label: '100MB', size: 100 * 1024 * 1024, data: open('./test-files/100MB.bin', 'b') },
+  // { label: '1MB', size: 1 * 1024 * 1024, data: open('./test-files/1MB.bin', 'b') },
+  // { label: '10MB', size: 10 * 1024 * 1024, data: open('./test-files/10MB.bin', 'b') },
+  { label: '100MB', size: 100 * 1024 * 1024, data: open('./test-files/100MB.bin', 'b') },
+  // { label: '500MB', size: 500 * 1024 * 1024, data: open('./test-files/500MB.bin', 'b') },
   // { label: '1GB', size: 1 * 1024 * 1024 * 1024, data: open('./test-files/1GB.bin', 'b') },
 ];
 
@@ -40,10 +41,10 @@ const FILE_SIZES = [
 export const options = {
   // 동시 사용자 수 (CLI에서 --vus로 오버라이드 가능)
   vus: 100,
-  
+
   // 테스트 지속 시간 (CLI에서 --duration으로 오버라이드 가능)
   duration: '1m',
-  
+
   // 스테이지를 사용한 단계적 부하 증가 (옵션)
   // 주석을 해제하여 사용
   // stages: [
@@ -52,7 +53,7 @@ export const options = {
   //   { duration: '1m', target: 100 },  // 1분 동안 100 VUs로 증가
   //   { duration: '30s', target: 0 },   // 30초 동안 0으로 감소
   // ],
-  
+
   // 임계값 (성공 기준)
   thresholds: {
     http_req_failed: ['rate<0.1'],        // 실패율 10% 미만
@@ -60,7 +61,7 @@ export const options = {
     'http_req_duration{name:get_presigned_url}': ['p(95)<1000'],  // Presigned URL 발급 1초 이내
     'http_req_duration{name:upload_file}': ['p(95)<10000'],       // 파일 업로드 10초 이내
   },
-  
+
   // 요약 통계 설정
   summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
 };
@@ -72,6 +73,7 @@ function getPresignedUrl(bucket, objectKey) {
   const payload = JSON.stringify({
     bucket: bucket,
     objectKey: objectKey,
+    fileSize: 1234,
   });
 
   const response = http.post(
@@ -109,17 +111,15 @@ function getPresignedUrl(bucket, objectKey) {
 /**
  * 파일 업로드
  */
-function uploadFile(presignedUrl, fileData, fileName, fileSize) {
-  // k6의 http.file()을 사용하여 바이너리 파일을 올바르게 전송
-  const formData = {
-    file: http.file(fileData, fileName, 'application/octet-stream'),
-  };
-
+function uploadFile(presignedUrl, fileData, _fileName, fileSize) {
   const response = http.put(
     presignedUrl,
-    formData,
+    fileData,
     {
-      tags: { 
+      headers: {
+        'Content-Type': 'application/octet-stream',
+      },
+      tags: {
         name: 'upload_file',
         file_size: fileSizeLabel(fileSize),
       },
@@ -152,38 +152,38 @@ function fileSizeLabel(size) {
 export default function () {
   // 랜덤으로 파일 크기 선택
   const selectedFile = randomItem(FILE_SIZES);
-  
+
   // 고유한 objectKey 생성
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(7);
   const vuId = __VU; // Virtual User ID
   const iterationId = __ITER; // Iteration ID
   const objectKey = `k6-load-test/vu${vuId}/${timestamp}-iter${iterationId}-${random}.bin`;
-  
+
   console.log(`[VU ${vuId}] 업로드 시작: ${selectedFile.label}, key=${objectKey}`);
-  
+
   // 1. Presigned URL 발급
   const presignedUrl = getPresignedUrl(BUCKET, objectKey);
-  
+
   if (!presignedUrl) {
     console.error(`[VU ${vuId}] Presigned URL 발급 실패, 업로드 중단`);
     sleep(1);
     return;
   }
-  
+
   // 2. 미리 로드된 파일 데이터 사용
   const fileData = selectedFile.data;
   const fileName = `test-${selectedFile.label.toLowerCase()}-${random}.bin`;
-  
+
   // 3. 파일 업로드
   const uploadSuccess = uploadFile(presignedUrl, fileData, fileName, selectedFile.size);
-  
+
   if (uploadSuccess) {
     console.log(`[VU ${vuId}] ✅ 업로드 성공: ${selectedFile.label}`);
   } else {
     console.log(`[VU ${vuId}] ❌ 업로드 실패: ${selectedFile.label}`);
   }
-  
+
   // 다음 반복 전 잠시 대기 (선택사항)
   sleep(Math.random() * 2 + 1); // 1~3초 랜덤 대기
 }
